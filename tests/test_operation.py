@@ -4,9 +4,14 @@ import pytest
 
 
 def test_operation(
-    chain, accounts, token, vault, strategy, user, strategist, amount, RELATIVE_APPROX
+    chain, accounts, token, gov, vault, ybs, reward_distributor, strategy, user, strategist, amount, RELATIVE_APPROX
 ):
     # Deposit to the vault
+    
+    vault.updateStrategyDebtRatio(strategy, 10_000, {'from':gov})
+    strategy.harvest({'from':gov})
+    
+    assert False
     user_balance_before = token.balanceOf(user)
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
