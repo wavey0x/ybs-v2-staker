@@ -68,7 +68,7 @@ def weth_amount(user, weth):
 
 @pytest.fixture
 def reward_token():
-    yield Contract('0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F') # crvUSD
+    yield Contract('0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F') # crvUSD v3 vault
 
 @pytest.fixture
 def vault(pm, gov, rewards, guardian, management, token):
@@ -121,9 +121,34 @@ def strategy(strategist, keeper, vault, Strategy, gov, ybs, reward_distributor, 
 def RELATIVE_APPROX():
     yield 1e-5
 
-
 # Function scoped isolation fixture to enable xdist.
 # Snapshots the chain before each test and reverts after test completion.
 @pytest.fixture(scope="function", autouse=True)
 def shared_setup(fn_isolation):
     pass
+
+@pytest.fixture
+def crvusd_whale(accounts, token, user, reward_token):
+    # In order to get some funds for the token you are about to use,
+    # it impersonate an exchange address to use it's funds.
+    amount = 100_000e18
+    crvusd = Contract(reward_token.asset())
+    reserve = accounts.at("0xA920De414eA4Ab66b97dA1bFE9e6EcA7d4219635", force=True)
+    crvusd.transfer(user, amount, {"from": reserve})
+    crvusd.approve(reward_token, 2**256-1, {'from':user})
+    reward_token.deposit(amount, user, {'from':user})
+    yield amount
+
+@pytest.fixture(scope="function")
+def deposit_rewards(user, reward_token, token, reward_distributor, crvusd_whale):
+
+    def deposit_rewards(user=user, reward_distributor=reward_distributor, token=token):
+        reward_token.approve(reward_distributor, 2**256-1, {'from':user})
+
+        # Deposit to rewards
+        amt = 5_000 * 10 ** 18
+        reward_distributor.depositReward(amt, {'from':user})
+        week = reward_distributor.getWeek()
+        assert amt == reward_distributor.weeklyRewardAmount(week)
+    
+    yield deposit_rewards

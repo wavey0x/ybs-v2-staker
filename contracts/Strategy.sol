@@ -21,9 +21,10 @@ interface IYearnBoostedStaker {
 }
 
 interface IRewardDistributor {
-    function claim() external returns (uint256 amount);
+    function claim() external returns (uint256);
     function rewardToken() external view returns (address);
     function staker() external view returns (address);
+    function getClaimable(address account) external view returns (uint256);
     function approveClaimer(address claimer, bool approved) external;
 }
 
@@ -148,12 +149,31 @@ contract Strategy is BaseStrategy {
         return balanceOfWant();
     }
 
+    function harvestTrigger(
+        uint256 _callCostinEth
+    ) public view override returns (bool) {
+        if (!isBaseFeeAcceptable()) {
+            return false;
+        }
+        if (rewardDistributor.getClaimable(address(this)) > 0) {
+            return true;
+        }
+        if (vault.creditAvailable() > creditThreshold) {
+            return true;
+        }
+        return false;
+    }
+
     function emergencyUnstake(uint256 _amount) external onlyEmergencyAuthorized returns (uint256) {
         ybs.unstake(_amount, address(this));
     }
 
-    function approveRewardClaimer(address _claimer, bool _approved) external onlyEmergencyAuthorized {
+    function approveRewardClaimer(address _claimer, bool _approved) external onlyVaultManagers {
         rewardDistributor.approveClaimer(_claimer, true);
+    }
+
+    function setSwapThreshold(uint256 _swapThreshold) external onlyVaultManagers {
+        swapThreshold = _swapThreshold;
     }
 
     function upgradeSwapper(ISwapper _swapper) external onlyGovernance {
