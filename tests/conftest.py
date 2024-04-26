@@ -68,7 +68,7 @@ def weth_amount(user, weth):
 
 @pytest.fixture
 def reward_token():
-    yield Contract('0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E') # crvUSD
+    yield Contract('0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F') # crvUSD
 
 @pytest.fixture
 def vault(pm, gov, rewards, guardian, management, token):
@@ -92,10 +92,26 @@ def reward_distributor(gov, reward_token, token, ybs, SingleTokenRewardDistribut
     reward_distributor = gov.deploy(SingleTokenRewardDistributor, ybs, reward_token)
     yield reward_distributor
     
+@pytest.fixture
+def swapper(gov, reward_token, token, ybs, Swapper):
+    token_in = '0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E' # crvUSD
+    token_out = token
+    token_out_pool1 = '0xD533a949740bb3306d119CC777fa900bA034cd52'
+    pool1 = '0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14'
+    pool2 = '0x99f5acc8ec2da2bc0771c32814eff52b712de1e5'
+    swapper = gov.deploy(
+        Swapper, 
+        token_in, 
+        token_out,
+        pool1,
+        token_out_pool1,
+        pool2
+    )
+    yield swapper
 
 @pytest.fixture
-def strategy(strategist, keeper, vault, Strategy, gov, ybs, reward_distributor):
-    strategy = strategist.deploy(Strategy, vault, ybs, reward_distributor)
+def strategy(strategist, keeper, vault, Strategy, gov, ybs, reward_distributor, swapper):
+    strategy = strategist.deploy(Strategy, vault, ybs, reward_distributor, swapper)
     strategy.setKeeper(keeper)
     vault.addStrategy(strategy, 10_000, 0, 2**256 - 1, 1_000, {"from": gov})
     yield strategy

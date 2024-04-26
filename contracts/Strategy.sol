@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0
-// Feel free to change the license, but this is what we use
 
-pragma solidity ^0.8.22;
+pragma solidity ^0.8.18;
 pragma experimental ABIEncoderV2;
 
 // These are the core Yearn libraries
 import {BaseStrategy, StrategyParams} from "@yearnvaults/contracts/BaseStrategy.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/math/Math.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {ISwapper} from "./interfaces/ISwapper.sol";
 
 // Import interfaces for many popular DeFi projects, or add your own!
 //import "../interfaces/<protocol>/<Interface>.sol";
@@ -16,30 +16,56 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 interface IYearnBoostedStaker {
     function balanceOf(address) external view returns (uint256);
     function stake(uint256 amount) external returns (uint256);
+    function MAX_STAKE_GROWTH_WEEKS() external returns (uint256);
     function unstake(uint256 amount, address receiver) external returns (uint256);
 }
 
 interface IRewardDistributor {
     function claim() external returns (uint256 amount);
     function rewardToken() external view returns (address);
+    function staker() external view returns (address);
     function approveClaimer(address claimer, bool approved) external;
+}
+
+interface IERC4626 {
+    function asset() external view returns (address);
+    function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
 }
 
 contract Strategy is BaseStrategy {
     using SafeERC20 for IERC20;
 
+    bool public bypassClaim;
+    uint256 public swapThreshold = 100e18;
+    ISwapper public swapper;
     IYearnBoostedStaker public immutable ybs;
     IRewardDistributor public immutable rewardDistributor;
     IERC20 public immutable rewardToken;
+    address public immutable rewardTokenUnderlying;
+    
 
-    constructor(address _vault, 
+    constructor(
+        address _vault, 
         IYearnBoostedStaker _ybs, 
-        IRewardDistributor _rewardDistributor
+        IRewardDistributor _rewardDistributor,
+        ISwapper _swapper
     ) BaseStrategy(_vault) {
+        // Address validation
+        require(_ybs.MAX_STAKE_GROWTH_WEEKS() > 0, "Invalid staker");
+        require(_rewardDistributor.staker() == address(_ybs), "Invalid rewards");
+        require(address(want) == address(_swapper.tokenOut()), "Invalid rewards");
+        address _rewardToken = _rewardDistributor.rewardToken();
+        address _rewardTokenUnderlying = IERC4626(_rewardToken).asset();
+        require(_rewardTokenUnderlying == address(_swapper.tokenIn()), "Invalid rewards");
+        
         ybs = _ybs;
         rewardDistributor = _rewardDistributor;
-        rewardToken = IERC20(rewardDistributor.rewardToken());
-        want.approve(address(ybs), type(uint256).max);
+        swapper = _swapper;
+        rewardToken = IERC20(_rewardToken);
+        rewardTokenUnderlying = _rewardTokenUnderlying;
+
+        IERC20(want).approve(address(ybs), type(uint).max);
+        IERC20(_rewardTokenUnderlying).approve(address(_swapper), type(uint).max);
     }
 
     function name() external pure override returns (string memory) {
@@ -47,15 +73,7 @@ contract Strategy is BaseStrategy {
     }
 
     function estimatedTotalAssets() public view override returns (uint256) {
-        return _balanceYBS() + _balanceYCRV();
-    }
-
-    function _balanceYCRV() internal view returns (uint256) {
-        return want.balanceOf(address(this));
-    }
-
-    function _balanceYBS() internal view returns (uint256) {
-        return ybs.balanceOf(address(this));
+        return balanceOfStaked() + balanceOfWant();
     }
 
     function prepareReturn(uint256 _debtOutstanding)
@@ -67,7 +85,7 @@ contract Strategy is BaseStrategy {
             uint256 _debtPayment
         )
     {
-        rewardDistributor.claim();
+        _claimAndSellRewards();
 
         uint256 totalAssets = estimatedTotalAssets();
         uint256 totalDebt = vault.strategies(address(this)).totalDebt;
@@ -88,11 +106,20 @@ contract Strategy is BaseStrategy {
             _profit = _profit - _loss;
             _loss = 0;
         }
+    }
 
+    function _claimAndSellRewards() internal {
+        if (!bypassClaim) rewardDistributor.claim();
+        uint256 rewardBalance = balanceOfReward();
+        if (rewardBalance > swapThreshold) {
+            rewardBalance = IERC4626(address(rewardToken))
+                .redeem(rewardBalance, address(this), address(this));
+            swapper.swap(rewardBalance);
+        }
     }
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
-        uint256 amount = _balanceYCRV();
+        uint256 amount = balanceOfWant();
         if(amount > 1) ybs.stake(amount);
     }
 
@@ -116,10 +143,9 @@ contract Strategy is BaseStrategy {
     }
 
     function liquidateAllPositions() internal override returns (uint256) {
-        uint256 amount = _balanceYBS();
+        uint256 amount = balanceOfStaked();
         if(amount > 1) ybs.unstake(amount, address(this));
-        
-        return _balanceYCRV();
+        return balanceOfWant();
     }
 
     function emergencyUnstake(uint256 _amount) external onlyEmergencyAuthorized returns (uint256) {
@@ -130,10 +156,30 @@ contract Strategy is BaseStrategy {
         rewardDistributor.approveClaimer(_claimer, true);
     }
 
+    function upgradeSwapper(ISwapper _swapper) external onlyGovernance {
+        require(_swapper.tokenOut() == address(want), "Invalid Swapper");
+        require(_swapper.tokenIn() == rewardTokenUnderlying);
+        IERC20(rewardTokenUnderlying).approve(address(swapper), 0);
+        IERC20(rewardTokenUnderlying).approve(address(_swapper), type(uint).max);
+        swapper = _swapper;
+    }
+
     function prepareMigration(address _newStrategy) internal override {
-        uint256 amount = _balanceYBS();
+        uint256 amount = balanceOfStaked();
         if(amount > 1) ybs.unstake(amount, _newStrategy);
         rewardToken.transfer(_newStrategy, rewardToken.balanceOf(address(this)));
+    }
+
+    function balanceOfWant() public view returns (uint256) {
+        return want.balanceOf(address(this));
+    }
+
+    function balanceOfStaked() public view returns (uint256) {
+        return ybs.balanceOf(address(this));
+    }
+
+    function balanceOfReward() public view returns (uint256) {
+        return rewardToken.balanceOf(address(this));
     }
 
     function protectedTokens()
@@ -149,8 +195,5 @@ contract Strategy is BaseStrategy {
         virtual
         override
         returns (uint256)
-    {
-        // TODO create an accurate price oracle
-        return _amtInWei;
-    }
+    {}
 }
