@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0
 
 pragma solidity ^0.8.18;
-pragma experimental ABIEncoderV2;
 
 // These are the core Yearn libraries
 import {BaseStrategy, StrategyParams} from "@yearnvaults/contracts/BaseStrategy.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20, SafeERC20} from "@yearnvaults/contracts/BaseStrategy.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ISwapper} from "./interfaces/ISwapper.sol";
 
@@ -36,28 +34,34 @@ interface IERC4626 {
 contract Strategy is BaseStrategy {
     using SafeERC20 for IERC20;
 
-    bool public bypassClaim;
-    uint256 public swapThreshold = 100e18;
+    SwapThresholds public swapThresholds;
     ISwapper public swapper;
+    bool public bypassClaim;
     IYearnBoostedStaker public immutable ybs;
     IRewardDistributor public immutable rewardDistributor;
     IERC20 public immutable rewardToken;
-    address public immutable rewardTokenUnderlying;
-    
+    IERC20 public immutable rewardTokenUnderlying;
+
+    struct SwapThresholds {
+        uint112 min;
+        uint112 max;
+    }
 
     constructor(
         address _vault, 
         IYearnBoostedStaker _ybs, 
         IRewardDistributor _rewardDistributor,
-        ISwapper _swapper
+        ISwapper _swapper,
+        uint _swapThresholdMin,
+        uint _swapThresholdMax
     ) BaseStrategy(_vault) {
         // Address validation
         require(_ybs.MAX_STAKE_GROWTH_WEEKS() > 0, "Invalid staker");
         require(_rewardDistributor.staker() == address(_ybs), "Invalid rewards");
         require(address(want) == address(_swapper.tokenOut()), "Invalid rewards");
         address _rewardToken = _rewardDistributor.rewardToken();
-        address _rewardTokenUnderlying = IERC4626(_rewardToken).asset();
-        require(_rewardTokenUnderlying == address(_swapper.tokenIn()), "Invalid rewards");
+        IERC20 _rewardTokenUnderlying = IERC20(IERC4626(_rewardToken).asset());
+        require(_rewardTokenUnderlying == _swapper.tokenIn(), "Invalid rewards");
         
         ybs = _ybs;
         rewardDistributor = _rewardDistributor;
@@ -65,8 +69,10 @@ contract Strategy is BaseStrategy {
         rewardToken = IERC20(_rewardToken);
         rewardTokenUnderlying = _rewardTokenUnderlying;
 
-        IERC20(want).approve(address(ybs), type(uint).max);
-        IERC20(_rewardTokenUnderlying).approve(address(_swapper), type(uint).max);
+        want.approve(address(_ybs), type(uint).max);
+        _rewardTokenUnderlying.approve(address(_swapper), type(uint).max);
+
+        _setSwapThresholds(_swapThresholdMin, _swapThresholdMax);
     }
 
     function name() external pure override returns (string memory) {
@@ -111,11 +117,19 @@ contract Strategy is BaseStrategy {
 
     function _claimAndSellRewards() internal {
         if (!bypassClaim) rewardDistributor.claim();
+
         uint256 rewardBalance = balanceOfReward();
-        if (rewardBalance > swapThreshold) {
-            rewardBalance = IERC4626(address(rewardToken))
-                .redeem(rewardBalance, address(this), address(this));
-            swapper.swap(rewardBalance);
+        if (rewardBalance > 0) {
+            // Redeem the full balance at once to avoid unnecessary costly withdrawals.
+            IERC4626(address(rewardToken)).redeem(rewardBalance, address(this), address(this));
+        }
+        uint256 toSwap = rewardTokenUnderlying.balanceOf(address(this));
+        
+        if (toSwap == 0) return;
+        SwapThresholds memory st = swapThresholds;
+        if (toSwap > st.min) {
+            toSwap = Math.min(toSwap, st.max);
+            swapper.swap(toSwap);
         }
     }
 
@@ -164,30 +178,42 @@ contract Strategy is BaseStrategy {
         return false;
     }
 
-    function emergencyUnstake(uint256 _amount) external onlyEmergencyAuthorized returns (uint256) {
+    function emergencyUnstake(uint256 _amount) external onlyEmergencyAuthorized {
         ybs.unstake(_amount, address(this));
     }
 
     function approveRewardClaimer(address _claimer, bool _approved) external onlyVaultManagers {
-        rewardDistributor.approveClaimer(_claimer, true);
+        rewardDistributor.approveClaimer(_claimer, _approved);
     }
 
-    function setSwapThreshold(uint256 _swapThreshold) external onlyVaultManagers {
-        swapThreshold = _swapThreshold;
+    function setSwapThresholds(uint256 _swapThresholdMin, uint256 _swapThresholdMax) external onlyVaultManagers {
+        _setSwapThresholds(_swapThresholdMin, _swapThresholdMax);
+    }
+
+    function _setSwapThresholds(uint256 _swapThresholdMin, uint256 _swapThresholdMax) internal {
+        require(_swapThresholdMax < type(uint112).max);
+        require(_swapThresholdMin < _swapThresholdMax);
+        swapThresholds.min = uint112(_swapThresholdMin);
+        swapThresholds.max = uint112(_swapThresholdMax);
+    }
+
+    function setBypassClaim(bool _bypassClaim) external onlyEmergencyAuthorized returns (uint256) {
+        bypassClaim = _bypassClaim;
     }
 
     function upgradeSwapper(ISwapper _swapper) external onlyGovernance {
-        require(_swapper.tokenOut() == address(want), "Invalid Swapper");
+        require(_swapper.tokenOut() == want, "Invalid Swapper");
         require(_swapper.tokenIn() == rewardTokenUnderlying);
-        IERC20(rewardTokenUnderlying).approve(address(swapper), 0);
-        IERC20(rewardTokenUnderlying).approve(address(_swapper), type(uint).max);
+        rewardTokenUnderlying.approve(address(swapper), 0);
+        rewardTokenUnderlying.approve(address(_swapper), type(uint).max);
         swapper = _swapper;
     }
 
     function prepareMigration(address _newStrategy) internal override {
         uint256 amount = balanceOfStaked();
         if(amount > 1) ybs.unstake(amount, _newStrategy);
-        rewardToken.transfer(_newStrategy, rewardToken.balanceOf(address(this)));
+        amount = rewardToken.balanceOf(address(this));
+        if (amount > 0) rewardToken.safeTransfer(_newStrategy, amount);
     }
 
     function balanceOfWant() public view returns (uint256) {
@@ -207,7 +233,12 @@ contract Strategy is BaseStrategy {
         view
         override
         returns (address[] memory)
-    {}
+    {
+        address[] memory tokens = new address[](2);
+        tokens[0] = address(rewardToken);
+        tokens[1] = address(rewardTokenUnderlying);
+        return tokens;
+    }
 
     function ethToWant(uint256 _amtInWei)
         public

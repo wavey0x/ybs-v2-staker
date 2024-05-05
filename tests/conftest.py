@@ -111,7 +111,7 @@ def swapper(gov, reward_token, token, ybs, Swapper):
 
 @pytest.fixture
 def strategy(strategist, keeper, vault, Strategy, gov, ybs, reward_distributor, swapper):
-    strategy = strategist.deploy(Strategy, vault, ybs, reward_distributor, swapper)
+    strategy = strategist.deploy(Strategy, vault, ybs, reward_distributor, swapper, 0, 1_000_000e18)
     strategy.setKeeper(keeper)
     vault.addStrategy(strategy, 10_000, 0, 2**256 - 1, 1_000, {"from": gov})
     yield strategy
