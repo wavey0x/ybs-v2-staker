@@ -16,6 +16,7 @@ interface IYearnBoostedStaker {
     function stake(uint256 amount) external returns (uint256);
     function MAX_STAKE_GROWTH_WEEKS() external returns (uint256);
     function unstake(uint256 amount, address receiver) external returns (uint256);
+    function stakeAsMaxWeighted(address _account, uint _amount) external returns (uint256);
 }
 
 interface IRewardDistributor {
@@ -37,6 +38,7 @@ contract Strategy is BaseStrategy {
     SwapThresholds public swapThresholds;
     ISwapper public swapper;
     bool public bypassClaim;
+    bool public doMaxStake;
     IYearnBoostedStaker public immutable ybs;
     IRewardDistributor public immutable rewardDistributor;
     IERC20 public immutable rewardToken;
@@ -129,7 +131,8 @@ contract Strategy is BaseStrategy {
         SwapThresholds memory st = swapThresholds;
         if (toSwap > st.min) {
             toSwap = Math.min(toSwap, st.max);
-            swapper.swap(toSwap);
+            uint profit = swapper.swap(toSwap);
+            if(profit > 1 && doMaxStake) ybs.stakeAsMaxWeighted(address(this), profit);
         }
     }
 
@@ -197,8 +200,9 @@ contract Strategy is BaseStrategy {
         swapThresholds.max = uint112(_swapThresholdMax);
     }
 
-    function setBypassClaim(bool _bypassClaim) external onlyEmergencyAuthorized returns (uint256) {
-        bypassClaim = _bypassClaim;
+    function configureClaim(bool _bypass, bool _doMaxStake) external onlyVaultManagers {
+        bypassClaim = _bypass;
+        doMaxStake = _doMaxStake;
     }
 
     function upgradeSwapper(ISwapper _swapper) external onlyGovernance {

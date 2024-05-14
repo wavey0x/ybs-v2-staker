@@ -83,15 +83,37 @@ def vault(pm, gov, rewards, guardian, management, token):
     yield vault
 
 @pytest.fixture
-def ybs(pm, gov, rewards, guardian, management, token, YearnBoostedStaker):
-    ybs = gov.deploy(YearnBoostedStaker, token, 4, 0, gov)
+def registry(gov, reward_token, token):
+    registry = Contract('0x262be1d31d0754399d8d5dc63B99c22146E9f738')
+    deployment = registry.deployments(token)
+    if deployment['yearnBoostedStaker'] == ZERO_ADDRESS:
+        tx = registry.createNewDeployment(
+            token,
+            4,
+            0,
+            reward_token,
+            {'from':gov}
+        )
+    yield registry
+
+@pytest.fixture
+def ybs(registry, YearnBoostedStaker, token):
+    deployment = registry.deployments(token)
+    ybs = YearnBoostedStaker.at(deployment['yearnBoostedStaker'])
     yield ybs
 
 @pytest.fixture
-def reward_distributor(gov, reward_token, token, ybs, SingleTokenRewardDistributor):
-    reward_distributor = gov.deploy(SingleTokenRewardDistributor, ybs, reward_token)
+def reward_distributor(registry, SingleTokenRewardDistributor, token):
+    deployment = registry.deployments(token)
+    reward_distributor = SingleTokenRewardDistributor.at(deployment['rewardDistributor'])
     yield reward_distributor
-    
+
+@pytest.fixture
+def utils(registry, interfaces, token):
+    deployment = registry.deployments(token)
+    utils = interfaces.IYBSUtilities(deployment['utilities'])
+    yield utils
+
 @pytest.fixture
 def swapper(gov, reward_token, token, ybs, Swapper):
     token_in = '0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E' # crvUSD

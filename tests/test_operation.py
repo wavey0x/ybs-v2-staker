@@ -5,7 +5,7 @@ import pytest
 
 def test_operation(
     chain, accounts, token, gov, vault, ybs, 
-    reward_distributor, strategy, user, strategist, amount, RELATIVE_APPROX, deposit_rewards
+    reward_distributor, strategy, user, utils, amount, RELATIVE_APPROX, deposit_rewards
 ):
     # Deposit to the vault
     vault.updateStrategyDebtRatio(strategy, 10_000, {'from':gov})
