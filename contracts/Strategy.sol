@@ -7,6 +7,7 @@ import {BaseStrategy, StrategyParams} from "@yearnvaults/contracts/BaseStrategy.
 import {IERC20, SafeERC20} from "@yearnvaults/contracts/BaseStrategy.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ISwapper} from "./interfaces/ISwapper.sol";
+import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
 
 // Import interfaces for many popular DeFi projects, or add your own!
 //import "../interfaces/<protocol>/<Interface>.sol";
@@ -17,14 +18,6 @@ interface IYearnBoostedStaker {
     function MAX_STAKE_GROWTH_WEEKS() external returns (uint256);
     function unstake(uint256 amount, address receiver) external returns (uint256);
     function stakeAsMaxWeighted(address _account, uint _amount) external returns (uint256);
-}
-
-interface IRewardDistributor {
-    function claim() external returns (uint256);
-    function rewardToken() external view returns (address);
-    function staker() external view returns (address);
-    function getClaimable(address account) external view returns (uint256);
-    function approveClaimer(address claimer, bool approved) external;
 }
 
 interface IERC4626 {

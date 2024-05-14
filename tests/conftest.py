@@ -1,6 +1,5 @@
 import pytest
-from brownie import config
-from brownie import Contract, ZERO_ADDRESS
+from brownie import Contract, ZERO_ADDRESS, interface, config
 
 
 @pytest.fixture
@@ -97,21 +96,21 @@ def registry(gov, reward_token, token):
     yield registry
 
 @pytest.fixture
-def ybs(registry, YearnBoostedStaker, token):
+def ybs(registry, interface, token):
     deployment = registry.deployments(token)
-    ybs = YearnBoostedStaker.at(deployment['yearnBoostedStaker'])
+    ybs = interface.IYearnBoostedStaker(deployment['yearnBoostedStaker'])
     yield ybs
 
 @pytest.fixture
-def reward_distributor(registry, SingleTokenRewardDistributor, token):
+def reward_distributor(registry, interface, token):
     deployment = registry.deployments(token)
-    reward_distributor = SingleTokenRewardDistributor.at(deployment['rewardDistributor'])
+    reward_distributor = interface.IRewardDistributor(deployment['rewardDistributor'])
     yield reward_distributor
 
 @pytest.fixture
-def utils(registry, interfaces, token):
+def utils(registry, interface, token):
     deployment = registry.deployments(token)
-    utils = interfaces.IYBSUtilities(deployment['utilities'])
+    utils = interface.IYBSUtilities(deployment['utilities'])
     yield utils
 
 @pytest.fixture

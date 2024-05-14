@@ -1,10 +1,9 @@
 // SPDX-License-Identifier: GNU AGPLv3
 pragma solidity ^0.8.18;
 
-import {IYearnBoostedStaker} from "./IYearnBoostedStaker.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-interface IRewardsDistributor {
+interface IRewardDistributor {
     // Structs
     struct AccountInfo {
         address recipient; // Who rewards will be sent to.

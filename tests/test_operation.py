@@ -20,6 +20,11 @@ def test_operation(
     # Claim rewards
     chain.sleep(60 * 60 * 24 * 7)
     chain.mine()
+    if utils.getGlobalActiveBoostMultiplier() == 0:
+        reward_distributor.pushRewards(utils.getWeek() - 1, {'from':gov})
+        chain.sleep(60 * 60 * 24 * 7)
+        chain.mine()
+        assert utils.getGlobalActiveBoostMultiplier() > 0
     assert reward_distributor.getClaimable(strategy) > 0
 
     
