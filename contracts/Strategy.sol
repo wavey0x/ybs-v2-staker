@@ -8,17 +8,7 @@ import {IERC20, SafeERC20} from "@yearnvaults/contracts/BaseStrategy.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ISwapper} from "./interfaces/ISwapper.sol";
 import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
-
-// Import interfaces for many popular DeFi projects, or add your own!
-//import "../interfaces/<protocol>/<Interface>.sol";
-
-interface IYearnBoostedStaker {
-    function balanceOf(address) external view returns (uint256);
-    function stake(uint256 amount) external returns (uint256);
-    function MAX_STAKE_GROWTH_WEEKS() external returns (uint256);
-    function unstake(uint256 amount, address receiver) external returns (uint256);
-    function stakeAsMaxWeighted(address _account, uint _amount) external returns (uint256);
-}
+import {IYearnBoostedStaker} from "./interfaces/IYearnBoostedStaker.sol";
 
 interface IERC4626 {
     function asset() external view returns (address);
@@ -31,7 +21,7 @@ contract Strategy is BaseStrategy {
     SwapThresholds public swapThresholds;
     ISwapper public swapper;
     bool public bypassClaim;
-    bool public doMaxStake;
+    bool public bypassMaxStake;
     IYearnBoostedStaker public immutable ybs;
     IRewardDistributor public immutable rewardDistributor;
     IERC20 public immutable rewardToken;
@@ -125,7 +115,13 @@ contract Strategy is BaseStrategy {
         if (toSwap > st.min) {
             toSwap = Math.min(toSwap, st.max);
             uint profit = swapper.swap(toSwap);
-            if(profit > 1 && doMaxStake) ybs.stakeAsMaxWeighted(address(this), profit);
+            if(
+                profit > 1 && 
+                !bypassMaxStake &&
+                ybs.approvedWeightedStaker(address(this))
+            ) {
+                ybs.stakeAsMaxWeighted(address(this), profit);
+            }
         }
     }
 
@@ -193,9 +189,9 @@ contract Strategy is BaseStrategy {
         swapThresholds.max = uint112(_swapThresholdMax);
     }
 
-    function configureClaim(bool _bypass, bool _doMaxStake) external onlyVaultManagers {
+    function configureClaim(bool _bypass, bool _bypassMaxStake) external onlyVaultManagers {
         bypassClaim = _bypass;
-        doMaxStake = _doMaxStake;
+        bypassMaxStake = _bypassMaxStake;
     }
 
     function upgradeSwapper(ISwapper _swapper) external onlyGovernance {
