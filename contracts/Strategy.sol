@@ -189,8 +189,8 @@ contract Strategy is BaseStrategy {
         swapThresholds.max = uint112(_swapThresholdMax);
     }
 
-    function configureClaim(bool _bypass, bool _bypassMaxStake) external onlyVaultManagers {
-        bypassClaim = _bypass;
+    function setBypasses(bool _bypassClaim, bool _bypassMaxStake) external onlyManagement {
+        bypassClaim = _bypassClaim;
         bypassMaxStake = _bypassMaxStake;
     }
 
