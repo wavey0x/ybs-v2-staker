@@ -18,6 +18,7 @@ contract Swapper {
     uint public pool1OutTokenIdx;
     int128 public pool2InTokenIdx;
     int128 public pool2OutTokenIdx;
+    address public constant owner = 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52;
 
     constructor(
         ERC20 _tokenIn,
@@ -75,6 +76,11 @@ contract Swapper {
         return pool2.exchange(pool2InTokenIdx, pool2OutTokenIdx, out, 0, msg.sender);
     }
 
+    function sweep(address _token) external {
+        require(msg.sender == owner, "!authorized");
+        uint amount = ERC20(_token).balanceOf(address(this));
+        if (amount > 0) ERC20(_token).safeTransfer(owner, amount);
+    }
 
 }
 
