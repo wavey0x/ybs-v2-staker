@@ -103,15 +103,15 @@ contract Strategy is BaseStrategy {
     function _claimAndSellRewards() internal {
         if (!bypassClaim) rewardDistributor.claim();
 
+        SwapThresholds memory st = swapThresholds;
         uint256 rewardBalance = balanceOfReward();
-        if (rewardBalance > 0) {
+        if (rewardBalance > st.min) {
             // Redeem the full balance at once to avoid unnecessary costly withdrawals.
             IERC4626(address(rewardToken)).redeem(rewardBalance, address(this), address(this));
         }
         uint256 toSwap = rewardTokenUnderlying.balanceOf(address(this));
         
         if (toSwap == 0) return;
-        SwapThresholds memory st = swapThresholds;
         if (toSwap > st.min) {
             toSwap = Math.min(toSwap, st.max);
             uint profit = swapper.swap(toSwap);
