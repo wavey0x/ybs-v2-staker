@@ -53,8 +53,8 @@ contract Strategy is BaseStrategy {
         rewardToken = IERC20(_rewardToken);
         rewardTokenUnderlying = _rewardTokenUnderlying;
 
-        want.approve(address(_ybs), type(uint).max);
-        _rewardTokenUnderlying.approve(address(_swapper), type(uint).max);
+        want.forceApprove(address(_ybs), type(uint).max);
+        _rewardTokenUnderlying.forceApprove(address(_swapper), type(uint).max);
 
         _setSwapThresholds(_swapThresholdMin, _swapThresholdMax);
     }
@@ -196,8 +196,8 @@ contract Strategy is BaseStrategy {
     function upgradeSwapper(ISwapper _swapper) external onlyGovernance {
         require(_swapper.tokenOut() == want, "Invalid Swapper");
         require(_swapper.tokenIn() == rewardTokenUnderlying);
-        rewardTokenUnderlying.approve(address(swapper), 0);
-        rewardTokenUnderlying.approve(address(_swapper), type(uint).max);
+        rewardTokenUnderlying.forceApprove(address(swapper), 0);
+        rewardTokenUnderlying.forceApprove(address(_swapper), type(uint).max);
         swapper = _swapper;
     }
 
