@@ -201,11 +201,16 @@ contract Strategy is BaseStrategy {
         swapper = _swapper;
     }
 
+    /**
+        @dev: Before migrating, ensure rewards are manually claimed.
+    */
     function prepareMigration(address _newStrategy) internal override {
         uint256 amount = balanceOfStaked();
         if(amount > 1) ybs.unstake(amount, _newStrategy);
         amount = rewardToken.balanceOf(address(this));
         if (amount > 0) rewardToken.safeTransfer(_newStrategy, amount);
+        amount = rewardTokenUnderlying.balanceOf(address(this));
+        if (amount > 0) rewardTokenUnderlying.safeTransfer(_newStrategy, amount);
     }
 
     function balanceOfWant() public view returns (uint256) {
