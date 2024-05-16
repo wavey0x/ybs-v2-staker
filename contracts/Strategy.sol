@@ -5,7 +5,6 @@ pragma solidity ^0.8.18;
 // These are the core Yearn libraries
 import {BaseStrategy, StrategyParams} from "@yearnvaults/contracts/BaseStrategy.sol";
 import {IERC20, SafeERC20} from "@yearnvaults/contracts/BaseStrategy.sol";
-import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {ISwapper} from "./interfaces/ISwapper.sol";
 import {IRewardDistributor} from "./interfaces/IRewardDistributor.sol";
 import {IYearnBoostedStaker} from "./interfaces/IYearnBoostedStaker.sol";
@@ -88,7 +87,7 @@ contract Strategy is BaseStrategy {
 
         uint256 _amountFreed;
         (_amountFreed, _loss) = liquidatePosition(_debtOutstanding + _profit);
-        _debtPayment = Math.min(_debtOutstanding, _amountFreed);
+        _debtPayment = min(_debtOutstanding, _amountFreed);
 
         //Net profit and loss calculation
         if (_loss > _profit) {
@@ -113,7 +112,7 @@ contract Strategy is BaseStrategy {
         
         if (toSwap == 0) return;
         if (toSwap > st.min) {
-            toSwap = Math.min(toSwap, st.max);
+            toSwap = min(toSwap, st.max);
             uint profit = swapper.swap(toSwap);
             if(
                 profit > 1 && 
@@ -189,7 +188,7 @@ contract Strategy is BaseStrategy {
         swapThresholds.max = uint112(_swapThresholdMax);
     }
 
-    function setBypasses(bool _bypassClaim, bool _bypassMaxStake) external onlyManagement {
+    function setBypasses(bool _bypassClaim, bool _bypassMaxStake) external onlyVaultManagers {
         bypassClaim = _bypassClaim;
         bypassMaxStake = _bypassMaxStake;
     }
@@ -240,4 +239,8 @@ contract Strategy is BaseStrategy {
         override
         returns (uint256)
     {}
+
+    function min(uint256 a, uint256 b) internal pure returns (uint256) {
+        return a < b ? a : b;
+    }
 }
