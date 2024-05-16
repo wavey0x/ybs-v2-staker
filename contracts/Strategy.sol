@@ -53,8 +53,8 @@ contract Strategy is BaseStrategy {
         rewardToken = IERC20(_rewardToken);
         rewardTokenUnderlying = _rewardTokenUnderlying;
 
-        want.forceApprove(address(_ybs), type(uint).max);
-        _rewardTokenUnderlying.forceApprove(address(_swapper), type(uint).max);
+        want.approve(address(_ybs), type(uint).max);
+        _rewardTokenUnderlying.approve(address(_swapper), type(uint).max);
 
         _setSwapThresholds(_swapThresholdMin, _swapThresholdMax);
     }
@@ -108,7 +108,7 @@ contract Strategy is BaseStrategy {
             // Redeem the full balance at once to avoid unnecessary costly withdrawals.
             IERC4626(address(rewardToken)).redeem(rewardBalance, address(this), address(this));
         }
-        
+
         uint256 toSwap = rewardTokenUnderlying.balanceOf(address(this));
         if (toSwap > st.min) {
             toSwap = min(toSwap, st.max);
@@ -195,14 +195,12 @@ contract Strategy is BaseStrategy {
     function upgradeSwapper(ISwapper _swapper) external onlyGovernance {
         require(_swapper.tokenOut() == want, "Invalid Swapper");
         require(_swapper.tokenIn() == rewardTokenUnderlying);
-        rewardTokenUnderlying.forceApprove(address(swapper), 0);
-        rewardTokenUnderlying.forceApprove(address(_swapper), type(uint).max);
+        rewardTokenUnderlying.approve(address(swapper), 0);
+        rewardTokenUnderlying.approve(address(_swapper), type(uint).max);
         swapper = _swapper;
     }
 
-    /**
-        @dev: Before migrating, ensure rewards are manually claimed.
-    */
+    // Before migrating, ensure rewards are manually claimed.
     function prepareMigration(address _newStrategy) internal override {
         uint256 amount = balanceOfStaked();
         if(amount > 1) ybs.unstake(amount, _newStrategy);
