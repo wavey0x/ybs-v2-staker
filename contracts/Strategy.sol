@@ -108,9 +108,8 @@ contract Strategy is BaseStrategy {
             // Redeem the full balance at once to avoid unnecessary costly withdrawals.
             IERC4626(address(rewardToken)).redeem(rewardBalance, address(this), address(this));
         }
-        uint256 toSwap = rewardTokenUnderlying.balanceOf(address(this));
         
-        if (toSwap == 0) return;
+        uint256 toSwap = rewardTokenUnderlying.balanceOf(address(this));
         if (toSwap > st.min) {
             toSwap = min(toSwap, st.max);
             uint profit = swapper.swap(toSwap);
