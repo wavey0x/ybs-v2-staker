@@ -1,56 +1,42 @@
-from brownie import Strategy, accounts, config, network, project, web3
-from eth_utils import is_checksum_address
-import click
-
-yearnDep = config["dependencies"][0]
-
-API_VERSION = yearnDep.split("@")[-1]
-Vault = project.load(yearnDep).Vault
-
-
-def get_address(msg: str, default: str = None) -> str:
-    val = click.prompt(msg, default=default)
-
-    # Keep asking user for click.prompt until it passes
-    while True:
-
-        if is_checksum_address(val):
-            return val
-        elif addr := web3.ens.address(val):
-            click.echo(f"Found ENS '{val}' [{addr}]")
-            return addr
-
-        click.echo(
-            f"I'm sorry, but '{val}' is not a checksummed address or valid ENS record"
-        )
-        # NOTE: Only display default once
-        val = click.prompt(msg)
-
+from brownie import Strategy, Swapper, accounts, config, Contract, project, web3
 
 def main():
-    print(f"You are using the '{network.show_active()}' network")
-    dev = accounts.load(click.prompt("Account", type=click.Choice(accounts.load())))
-    print(f"You are using: 'dev' [{dev.address}]")
-
-    if input("Is there a Vault for this strategy already? y/[N]: ").lower() == "y":
-        vault = Vault.at(get_address("Deployed Vault: "))
-        assert vault.apiVersion() == API_VERSION
-    else:
-        print("You should deploy one vault using scripts from Vault project")
-        return  # TODO: Deploy one using scripts from Vault project
-
-    print(
-        f"""
-    Strategy Parameters
-
-       api: {API_VERSION}
-     token: {vault.token()}
-      name: '{vault.name()}'
-    symbol: '{vault.symbol()}'
-    """
+    wavey = accounts.load('wavey3')
+    ycrv = '0xFCc5c47bE19d06BF83eB04298b026F81069ff65b'
+    # Strategy unwraps from vault
+    token_in = '0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E' # crvUSD
+    token_out = ycrv
+    token_out_pool1 = '0xD533a949740bb3306d119CC777fa900bA034cd52' # CRV
+    pool1 = '0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14' # TriCRV
+    pool2 = '0x99f5acc8ec2da2bc0771c32814eff52b712de1e5' # CRV/yCRV
+    swapper = wavey.deploy(
+        Swapper, 
+        token_in, 
+        token_out,
+        pool1,
+        token_out_pool1,
+        pool2
     )
-    publish_source = click.confirm("Verify source on etherscan?")
-    if input("Deploy Strategy? y/[N]: ").lower() != "y":
-        return
 
-    strategy = Strategy.deploy(vault, {"from": dev}, publish_source=publish_source)
+
+    vault = '0x27B5739e22ad9033bcBf192059122d163b60349D'
+    ybs = '0xE9A115b77A1057C918F997c32663FdcE24FB873f'
+    ylockers_registry = Contract('0x262be1d31d0754399d8d5dc63B99c22146E9f738')
+    deployment = ylockers_registry.deployments(ycrv)
+    assert ybs == deployment['yearnBoostedStaker']
+    reward_distributor = deployment['rewardDistributor']
+    strategy = wavey.deploy(
+        Strategy, 
+        vault, 
+        ybs, 
+        reward_distributor, 
+        swapper, 
+        1000e18,    # min sell
+        60_000e18,   # max sell
+        publish_source=True
+    )
+    keeper = '0x736D7e3c5a6CB2CE3B764300140ABF476F6CFCCF'
+    strategy.setKeeper(keeper)
+    strategy.setCreditThreshold(20_000e18)
+    vault.addStrategy(strategy, 10_000, 0, 2**256 - 1, 1_000, {"from": gov})
+    yield strategy

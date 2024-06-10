@@ -21,6 +21,7 @@ contract Strategy is BaseStrategy {
     ISwapper public swapper;
     bool public bypassClaim;
     bool public bypassMaxStake;
+    uint public thresholdTimeUntilWeekEnd = 2 hours;
     IYearnBoostedStaker public immutable ybs;
     IRewardDistributor public immutable rewardDistributor;
     IERC20 public immutable rewardToken;
@@ -156,6 +157,15 @@ contract Strategy is BaseStrategy {
     function harvestTrigger(
         uint256 _callCostinEth
     ) public view override returns (bool) {
+        uint weekEnd = (block.timestamp / 1 weeks + 1) * 1 weeks;
+        bool isNearEnd = weekEnd - block.timestamp <= thresholdTimeUntilWeekEnd;
+        if (isNearEnd) {
+            uint lastReport = vault.strategies(address(this)).lastReport;
+            bool isLastReportRecent = weekEnd - lastReport <= thresholdTimeUntilWeekEnd;
+            if (vault.creditAvailable() > 0 && !isLastReportRecent) {
+                return true;
+            }
+        }
         if (!isBaseFeeAcceptable()) {
             return false;
         }
@@ -190,6 +200,11 @@ contract Strategy is BaseStrategy {
     function setBypasses(bool _bypassClaim, bool _bypassMaxStake) external onlyVaultManagers {
         bypassClaim = _bypassClaim;
         bypassMaxStake = _bypassMaxStake;
+    }
+
+    function setWeekendHarvestTrigger(uint256 _thresholdTimeUntilWeekEnd) external onlyVaultManagers {
+        require(_thresholdTimeUntilWeekEnd < 7 days, "Too High");
+        thresholdTimeUntilWeekEnd = _thresholdTimeUntilWeekEnd;
     }
 
     function upgradeSwapper(ISwapper _swapper) external onlyGovernance {
