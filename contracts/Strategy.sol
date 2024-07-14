@@ -34,6 +34,7 @@ contract Strategy is BaseStrategy {
     struct SwapThresholds {
         uint112 min;
         uint112 max;
+        bool autoAdjustThresholds;
     }
 
     constructor(
@@ -124,9 +125,11 @@ contract Strategy is BaseStrategy {
                 address(this),
                 address(this)
             );
-
-            // use our weekly output to set how much we max sell each time (make sure we get it all in 7 days)
-            swapThresholds.max = uint112((output * 101) / 700);
+            
+            if (st.autoAdjustThresholds) {
+                // use our weekly output to set how much we max sell each time (make sure we get it all in 7 days)
+                swapThresholds.max = uint112((output * 101) / 700);
+            }
         }
 
         uint256 toSwap = rewardTokenUnderlying.balanceOf(address(this));
@@ -246,12 +249,14 @@ contract Strategy is BaseStrategy {
 
     function _setSwapThresholds(
         uint256 _swapThresholdMin,
-        uint256 _swapThresholdMax
+        uint256 _swapThresholdMax,
+        bool _autoAdjustThresholds
     ) internal {
         require(_swapThresholdMax < type(uint112).max);
         require(_swapThresholdMin < _swapThresholdMax);
         swapThresholds.min = uint112(_swapThresholdMin);
         swapThresholds.max = uint112(_swapThresholdMax);
+        swapThresholds.autoAdjustThresholds = _autoAdjustThresholds;
     }
 
     function setBypasses(
