@@ -71,6 +71,7 @@ contract Strategy is BaseStrategy {
         _rewardTokenUnderlying.approve(address(_swapper), type(uint).max);
 
         _setSwapThresholds(_swapThresholdMin, _swapThresholdMax);
+        minReportDelay = 22 hours;
     }
 
     function name() external pure override returns (string memory) {
@@ -110,17 +111,22 @@ contract Strategy is BaseStrategy {
     }
 
     function _claimAndSellRewards() internal {
-        if (!bypassClaim) rewardDistributor.claim();
+        if (!bypassClaim && rewardDistributor.getClaimable(address(this)) > 0) {
+            rewardDistributor.claim();
+        }
 
         SwapThresholds memory st = swapThresholds;
         uint256 rewardBalance = balanceOfReward();
         if (rewardBalance > st.min) {
             // Redeem the full balance at once to avoid unnecessary costly withdrawals.
-            IERC4626(address(rewardToken)).redeem(
+            uint256 output = IERC4626(address(rewardToken)).redeem(
                 rewardBalance,
                 address(this),
                 address(this)
             );
+
+            // use our weekly output to set how much we max sell each time (make sure we get it all in 7 days)
+            swapThresholds.max = uint112((output * 101) / 700);
         }
 
         uint256 toSwap = rewardTokenUnderlying.balanceOf(address(this));
@@ -135,6 +141,17 @@ contract Strategy is BaseStrategy {
                 ybs.stakeAsMaxWeighted(address(this), profit);
             }
         }
+    }
+
+    // use this during a migration to maintain the strategy's previous boost
+    function manualStakeAsMaxWeighted(
+        uint256 _maxStakeShare
+    ) external onlyVaultManagers {
+        require(_maxStakeShare < 1e18, "!percentage");
+        // manually stake a percentage of loose want as max weighted (use 1e18 as percentage)
+        uint256 maxWeightStake = (_maxStakeShare * balanceOfWant()) / 1e18;
+        ybs.stakeAsMaxWeighted(address(this), maxWeightStake);
+        ybs.stake(balanceOfWant());
     }
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
@@ -180,15 +197,30 @@ contract Strategy is BaseStrategy {
                 return true;
             }
         }
+
         if (!isBaseFeeAcceptable()) {
             return false;
         }
+
+        // trigger if we want to manually harvest, but only if our gas price is acceptable
+        if (forceHarvestTriggerOnce) {
+            return true;
+        }
+
+        // harvest if we hit our minDelay, but only if our gas price is acceptable
+        StrategyParams memory params = vault.strategies(address(this));
+        if (block.timestamp - params.lastReport > minReportDelay) {
+            return true;
+        }
+
         if (rewardDistributor.getClaimable(address(this)) > 0) {
             return true;
         }
+
         if (vault.creditAvailable() > creditThreshold) {
             return true;
         }
+
         return false;
     }
 
