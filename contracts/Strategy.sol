@@ -11,7 +11,11 @@ import {IYearnBoostedStaker} from "./interfaces/IYearnBoostedStaker.sol";
 
 interface IERC4626 {
     function asset() external view returns (address);
-    function redeem(uint256 shares, address receiver, address owner) external returns (uint256);
+    function redeem(
+        uint256 shares,
+        address receiver,
+        address owner
+    ) external returns (uint256);
 }
 
 contract Strategy is BaseStrategy {
@@ -33,8 +37,8 @@ contract Strategy is BaseStrategy {
     }
 
     constructor(
-        address _vault, 
-        IYearnBoostedStaker _ybs, 
+        address _vault,
+        IYearnBoostedStaker _ybs,
         IRewardDistributor _rewardDistributor,
         ISwapper _swapper,
         uint _swapThresholdMin,
@@ -42,12 +46,21 @@ contract Strategy is BaseStrategy {
     ) BaseStrategy(_vault) {
         // Address validation
         require(_ybs.MAX_STAKE_GROWTH_WEEKS() > 0, "Invalid staker");
-        require(_rewardDistributor.staker() == address(_ybs), "Invalid rewards");
-        require(address(want) == address(_swapper.tokenOut()), "Invalid rewards");
+        require(
+            _rewardDistributor.staker() == address(_ybs),
+            "Invalid rewards"
+        );
+        require(
+            address(want) == address(_swapper.tokenOut()),
+            "Invalid rewards"
+        );
         address _rewardToken = _rewardDistributor.rewardToken();
         IERC20 _rewardTokenUnderlying = IERC20(IERC4626(_rewardToken).asset());
-        require(_rewardTokenUnderlying == _swapper.tokenIn(), "Invalid rewards");
-        
+        require(
+            _rewardTokenUnderlying == _swapper.tokenIn(),
+            "Invalid rewards"
+        );
+
         ybs = _ybs;
         rewardDistributor = _rewardDistributor;
         swapper = _swapper;
@@ -68,23 +81,19 @@ contract Strategy is BaseStrategy {
         return balanceOfStaked() + balanceOfWant();
     }
 
-    function prepareReturn(uint256 _debtOutstanding)
+    function prepareReturn(
+        uint256 _debtOutstanding
+    )
         internal
         override
-        returns (
-            uint256 _profit,
-            uint256 _loss,
-            uint256 _debtPayment
-        )
+        returns (uint256 _profit, uint256 _loss, uint256 _debtPayment)
     {
         _claimAndSellRewards();
 
         uint256 totalAssets = estimatedTotalAssets();
         uint256 totalDebt = vault.strategies(address(this)).totalDebt;
-        
-        _profit = totalAssets > totalDebt
-            ? totalAssets - totalDebt
-            : 0;
+
+        _profit = totalAssets > totalDebt ? totalAssets - totalDebt : 0;
 
         uint256 _amountFreed;
         (_amountFreed, _loss) = liquidatePosition(_debtOutstanding + _profit);
@@ -107,15 +116,19 @@ contract Strategy is BaseStrategy {
         uint256 rewardBalance = balanceOfReward();
         if (rewardBalance > st.min) {
             // Redeem the full balance at once to avoid unnecessary costly withdrawals.
-            IERC4626(address(rewardToken)).redeem(rewardBalance, address(this), address(this));
+            IERC4626(address(rewardToken)).redeem(
+                rewardBalance,
+                address(this),
+                address(this)
+            );
         }
 
         uint256 toSwap = rewardTokenUnderlying.balanceOf(address(this));
         if (toSwap > st.min) {
             toSwap = min(toSwap, st.max);
             uint profit = swapper.swap(toSwap);
-            if(
-                profit > 1 && 
+            if (
+                profit > 1 &&
                 !bypassMaxStake &&
                 ybs.approvedWeightedStaker(address(this))
             ) {
@@ -126,23 +139,23 @@ contract Strategy is BaseStrategy {
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
         uint256 amount = balanceOfWant();
-        if(amount > 1) ybs.stake(amount);
+        if (amount > 1) ybs.stake(amount);
     }
 
-    function liquidatePosition(uint256 _amountNeeded)
-        internal
-        override
-        returns (uint256 _liquidatedAmount, uint256 _loss)
-    {
+    function liquidatePosition(
+        uint256 _amountNeeded
+    ) internal override returns (uint256 _liquidatedAmount, uint256 _loss) {
         uint256 loose = want.balanceOf(address(this));
-        
+
         if (_amountNeeded > loose) {
             _liquidatedAmount = loose;
             uint256 toUnstake = _amountNeeded - loose;
-            if(toUnstake > 1) {
+            if (toUnstake > 1) {
                 _liquidatedAmount += ybs.unstake(toUnstake, address(this));
             }
-            _loss = _amountNeeded > _liquidatedAmount ? _amountNeeded - _liquidatedAmount : 0;
+            _loss = _amountNeeded > _liquidatedAmount
+                ? _amountNeeded - _liquidatedAmount
+                : 0;
         } else {
             _liquidatedAmount = _amountNeeded;
         }
@@ -150,7 +163,7 @@ contract Strategy is BaseStrategy {
 
     function liquidateAllPositions() internal override returns (uint256) {
         uint256 amount = balanceOfStaked();
-        if(amount > 1) ybs.unstake(amount, address(this));
+        if (amount > 1) ybs.unstake(amount, address(this));
         return balanceOfWant();
     }
 
@@ -161,7 +174,8 @@ contract Strategy is BaseStrategy {
         bool isNearEnd = weekEnd - block.timestamp <= thresholdTimeUntilWeekEnd;
         if (isNearEnd) {
             uint lastReport = vault.strategies(address(this)).lastReport;
-            bool isLastReportRecent = weekEnd - lastReport <= thresholdTimeUntilWeekEnd;
+            bool isLastReportRecent = weekEnd - lastReport <=
+                thresholdTimeUntilWeekEnd;
             if (vault.creditAvailable() > 0 && !isLastReportRecent) {
                 return true;
             }
@@ -178,31 +192,47 @@ contract Strategy is BaseStrategy {
         return false;
     }
 
-    function emergencyUnstake(uint256 _amount) external onlyEmergencyAuthorized {
+    function emergencyUnstake(
+        uint256 _amount
+    ) external onlyEmergencyAuthorized {
         ybs.unstake(_amount, address(this));
     }
 
-    function approveRewardClaimer(address _claimer, bool _approved) external onlyVaultManagers {
+    function approveRewardClaimer(
+        address _claimer,
+        bool _approved
+    ) external onlyVaultManagers {
         rewardDistributor.approveClaimer(_claimer, _approved);
     }
 
-    function setSwapThresholds(uint256 _swapThresholdMin, uint256 _swapThresholdMax) external onlyVaultManagers {
+    function setSwapThresholds(
+        uint256 _swapThresholdMin,
+        uint256 _swapThresholdMax
+    ) external onlyVaultManagers {
         _setSwapThresholds(_swapThresholdMin, _swapThresholdMax);
     }
 
-    function _setSwapThresholds(uint256 _swapThresholdMin, uint256 _swapThresholdMax) internal {
+    function _setSwapThresholds(
+        uint256 _swapThresholdMin,
+        uint256 _swapThresholdMax
+    ) internal {
         require(_swapThresholdMax < type(uint112).max);
         require(_swapThresholdMin < _swapThresholdMax);
         swapThresholds.min = uint112(_swapThresholdMin);
         swapThresholds.max = uint112(_swapThresholdMax);
     }
 
-    function setBypasses(bool _bypassClaim, bool _bypassMaxStake) external onlyVaultManagers {
+    function setBypasses(
+        bool _bypassClaim,
+        bool _bypassMaxStake
+    ) external onlyVaultManagers {
         bypassClaim = _bypassClaim;
         bypassMaxStake = _bypassMaxStake;
     }
 
-    function setWeekendHarvestTrigger(uint256 _thresholdTimeUntilWeekEnd) external onlyVaultManagers {
+    function setWeekendHarvestTrigger(
+        uint256 _thresholdTimeUntilWeekEnd
+    ) external onlyVaultManagers {
         require(_thresholdTimeUntilWeekEnd < 7 days, "Too High");
         thresholdTimeUntilWeekEnd = _thresholdTimeUntilWeekEnd;
     }
@@ -218,11 +248,12 @@ contract Strategy is BaseStrategy {
     // Before migrating, ensure rewards are manually claimed.
     function prepareMigration(address _newStrategy) internal override {
         uint256 amount = balanceOfStaked();
-        if(amount > 1) ybs.unstake(amount, _newStrategy);
+        if (amount > 1) ybs.unstake(amount, _newStrategy);
         amount = rewardToken.balanceOf(address(this));
         if (amount > 0) rewardToken.safeTransfer(_newStrategy, amount);
         amount = rewardTokenUnderlying.balanceOf(address(this));
-        if (amount > 0) rewardTokenUnderlying.safeTransfer(_newStrategy, amount);
+        if (amount > 0)
+            rewardTokenUnderlying.safeTransfer(_newStrategy, amount);
     }
 
     function balanceOfWant() public view returns (uint256) {
@@ -249,13 +280,9 @@ contract Strategy is BaseStrategy {
         return tokens;
     }
 
-    function ethToWant(uint256 _amtInWei)
-        public
-        view
-        virtual
-        override
-        returns (uint256)
-    {}
+    function ethToWant(
+        uint256 _amtInWei
+    ) public view virtual override returns (uint256) {}
 
     function min(uint256 a, uint256 b) internal pure returns (uint256) {
         return a < b ? a : b;
