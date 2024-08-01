@@ -6,6 +6,11 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {ICurve} from "./interfaces/curve/ICurve.sol";
 import {ICurveInt128} from "./interfaces/curve/ICurveInt128.sol";
 
+
+interface IZap {
+    function zap(address _inputToken, address _outputToken, uint256 _amountIn, uint256 _minOut, address _recipient) external returns (uint256);
+}
+
 contract Swapper {
     using SafeERC20 for ERC20;
 
@@ -19,6 +24,9 @@ contract Swapper {
     int128 public pool2InTokenIdx;
     int128 public pool2OutTokenIdx;
     address public constant owner = 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52;
+    
+    // yCRV v4 zap
+    IZap public constant zap = IZap(0x78ada385b15D89a9B845D2Cac0698663F0c69e3C);
 
     constructor(
         ERC20 _tokenIn,
@@ -50,30 +58,14 @@ contract Swapper {
             }
         }
 
-        idxFound = 0;
-
-        for(uint i; i < 3; ++i){
-            token = _pool2.coins(i);
-            if(token == address(_tokenOutPool1)) {
-                pool2InTokenIdx = int128(int256(i));
-                idxFound++;
-                if(idxFound == 2) break;
-            }
-            if(token == address(_tokenOut)) {
-                pool2OutTokenIdx = int128(int256(i));
-                idxFound++;
-                if(idxFound == 2) break;
-            }
-        }
-
         tokenIn.approve(address(_pool1), type(uint).max);
-        tokenOutPool1.approve(address(_pool2), type(uint).max);
+        tokenOutPool1.approve(address(zap), type(uint).max);
     }
 
     function swap(uint _amount) external returns (uint) {
         tokenIn.safeTransferFrom(msg.sender, address(this), _amount);
         uint out = pool1.exchange_underlying(pool1InTokenIdx, pool1OutTokenIdx, _amount, 0);
-        return pool2.exchange(pool2InTokenIdx, pool2OutTokenIdx, out, 0, msg.sender);
+        return zap.zap(address(tokenOutPool1), address(tokenOut), out, 0, msg.sender);
     }
 
     function sweep(address _token) external {

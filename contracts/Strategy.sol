@@ -41,9 +41,7 @@ contract Strategy is BaseStrategy {
         address _vault,
         IYearnBoostedStaker _ybs,
         IRewardDistributor _rewardDistributor,
-        ISwapper _swapper,
-        uint _swapThresholdMin,
-        uint _swapThresholdMax
+        ISwapper _swapper
     ) BaseStrategy(_vault) {
         // Address validation
         require(_ybs.MAX_STAKE_GROWTH_WEEKS() > 0, "Invalid staker");
@@ -71,7 +69,7 @@ contract Strategy is BaseStrategy {
         want.approve(address(_ybs), type(uint).max);
         _rewardTokenUnderlying.approve(address(_swapper), type(uint).max);
 
-        _setSwapThresholds(_swapThresholdMin, _swapThresholdMax);
+        _setSwapThresholds(1_000e18, 10_000e18, true);
         minReportDelay = 22 hours;
     }
 
@@ -242,9 +240,10 @@ contract Strategy is BaseStrategy {
 
     function setSwapThresholds(
         uint256 _swapThresholdMin,
-        uint256 _swapThresholdMax
+        uint256 _swapThresholdMax,
+        bool _autoAdjustThresholds
     ) external onlyVaultManagers {
-        _setSwapThresholds(_swapThresholdMin, _swapThresholdMax);
+        _setSwapThresholds(_swapThresholdMin, _swapThresholdMax, _autoAdjustThresholds);
     }
 
     function _setSwapThresholds(
@@ -267,7 +266,7 @@ contract Strategy is BaseStrategy {
         bypassMaxStake = _bypassMaxStake;
     }
 
-    function setWeekendHarvestTrigger(
+    function setWeekEndHarvestTrigger(
         uint256 _thresholdTimeUntilWeekEnd
     ) external onlyVaultManagers {
         require(_thresholdTimeUntilWeekEnd < 7 days, "Too High");
