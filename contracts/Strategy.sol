@@ -18,6 +18,10 @@ interface IERC4626 {
     ) external returns (uint256);
 }
 
+interface IStrategyProxy {
+    function lock() external;
+}
+
 contract Strategy is BaseStrategy {
     using SafeERC20 for IERC20;
 
@@ -30,6 +34,7 @@ contract Strategy is BaseStrategy {
     IRewardDistributor public immutable rewardDistributor;
     IERC20 public immutable rewardToken;
     IERC20 public immutable rewardTokenUnderlying;
+    IStrategyProxy public constant proxy = IStrategyProxy(0x78eDcb307AC1d1F8F5Fd070B377A6e69C8dcFC34);
 
     struct SwapThresholds {
         uint112 min;
@@ -69,7 +74,7 @@ contract Strategy is BaseStrategy {
         want.approve(address(_ybs), type(uint).max);
         _rewardTokenUnderlying.approve(address(_swapper), type(uint).max);
 
-        _setSwapThresholds(1_000e18, 10_000e18, true);
+        _setSwapThresholds(100e18, 10_000e18, true);
         minReportDelay = 22 hours;
     }
 
@@ -98,6 +103,13 @@ contract Strategy is BaseStrategy {
         uint256 _amountFreed;
         (_amountFreed, _loss) = liquidatePosition(_debtOutstanding + _profit);
         _debtPayment = min(_debtOutstanding, _amountFreed);
+        
+        // lock at the end of each epoch
+        uint weekEnd = (block.timestamp / 1 weeks + 1) * 1 weeks;
+        bool isNearEnd = weekEnd - block.timestamp <= thresholdTimeUntilWeekEnd;
+        if (isNearEnd) {
+            proxy.lock();
+        }
 
         //Net profit and loss calculation
         if (_loss > _profit) {
