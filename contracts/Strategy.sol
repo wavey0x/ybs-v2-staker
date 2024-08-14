@@ -1,5 +1,4 @@
 // SPDX-License-Identifier: AGPL-3.0
-
 pragma solidity ^0.8.18;
 
 // These are the core Yearn libraries
@@ -122,9 +121,7 @@ contract Strategy is BaseStrategy {
     }
 
     function _claimAndSellRewards() internal {
-        if (!bypassClaim && rewardDistributor.getClaimable(address(this)) > 0) {
-            rewardDistributor.claim();
-        }
+        if (!bypassClaim) rewardDistributor.claim();
 
         SwapThresholds memory st = swapThresholds;
         uint256 rewardBalance = balanceOfReward();
@@ -138,7 +135,8 @@ contract Strategy is BaseStrategy {
             
             if (st.autoAdjustThresholds) {
                 // use our weekly output to set how much we max sell each time (make sure we get it all in 7 days)
-                swapThresholds.max = uint112((output * 101) / 700);
+                st.max = uint112((output * 101) / 700);
+                swapThresholds.max = st.max;
             }
         }
 
