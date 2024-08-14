@@ -178,6 +178,10 @@ def strategy(
         strategy.manualStakeAsMaxWeighted(95e16, {"from": gov})
     ybs.setWeightedStaker(strategy, True, {"from": gov})
 
+    # approve new strategy as a locker on proxy
+    proxy = Contract("0x78eDcb307AC1d1F8F5Fd070B377A6e69C8dcFC34")
+    proxy.approveLocker(strategy, True, {"from": gov})
+
     # do the manual boost setup, 95% max boosted
     strategy.manualStakeAsMaxWeighted(95e16, {"from": gov})
     chain.mine()

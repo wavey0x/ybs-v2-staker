@@ -161,6 +161,7 @@ contract Strategy is BaseStrategy {
         uint256 _maxStakeShare
     ) external onlyVaultManagers {
         require(_maxStakeShare < 1e18, "!percentage");
+        require(ybs.balanceOf(address(this)) == 0, "!empty");
         // manually stake a percentage of loose want as max weighted (use 1e18 as percentage)
         uint256 maxWeightStake = (_maxStakeShare * balanceOfWant()) / 1e18;
         ybs.stakeAsMaxWeighted(address(this), maxWeightStake);
