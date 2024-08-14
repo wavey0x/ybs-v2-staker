@@ -23,11 +23,8 @@ contract SwapperV2 {
     ERC20 public immutable tokenOut;
     ERC20 public immutable tokenOutPool1;
     ICurve public immutable pool1;
-    ICurveInt128 public immutable pool2;
     uint public pool1InTokenIdx;
     uint public pool1OutTokenIdx;
-    int128 public pool2InTokenIdx;
-    int128 public pool2OutTokenIdx;
     address public constant owner = 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52;
 
     // yCRV v4 zap
@@ -37,13 +34,11 @@ contract SwapperV2 {
         ERC20 _tokenIn,
         ERC20 _tokenOut,
         ICurve _pool1,
-        ERC20 _tokenOutPool1,
-        ICurveInt128 _pool2
+        ERC20 _tokenOutPool1
     ) {
         tokenIn = _tokenIn;
         tokenOut = _tokenOut;
         pool1 = _pool1;
-        pool2 = _pool2;
         tokenOutPool1 = _tokenOutPool1;
 
         uint idxFound;

@@ -1,5 +1,6 @@
 import pytest
-from brownie import Contract, ZERO_ADDRESS, interface, config
+import brownie
+from brownie import Contract, ZERO_ADDRESS, interface, config, chain
 
 
 @pytest.fixture
@@ -39,7 +40,7 @@ def keeper(accounts):
 
 @pytest.fixture
 def token():
-    token_address = "0xFCc5c47bE19d06BF83eB04298b026F81069ff65b"  # this should be the address of the ERC-20 used by the strategy/vault (DAI)
+    token_address = "0xFCc5c47bE19d06BF83eB04298b026F81069ff65b"  # this should be the address of the ERC-20 used by the strategy/vault (yCRV)
     yield Contract(token_address)
 
 
@@ -126,14 +127,72 @@ def swapper(gov, reward_token, token, ybs, Swapper):
 
 
 @pytest.fixture
+def swapper_v2(gov, reward_token, token, ybs, SwapperV2):
+    token_in = "0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E"  # crvUSD
+    token_out = token
+    token_out_pool1 = "0xD533a949740bb3306d119CC777fa900bA034cd52"
+    pool1 = "0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14"
+    swapper = gov.deploy(SwapperV2, token_in, token_out, pool1, token_out_pool1)
+    yield swapper
+
+
+@pytest.fixture
+def old_strategy(vault):
+    old_strategy = Contract(vault.withdrawalQueue(0))
+    yield old_strategy
+
+
+@pytest.fixture
 def strategy(
-    strategist, keeper, vault, Strategy, gov, ybs, reward_distributor, swapper
+    strategist,
+    keeper,
+    vault,
+    Strategy,
+    gov,
+    ybs,
+    reward_distributor,
+    swapper,
+    old_strategy,
+    token,
+    registry,
+    swapper_v2,
 ):
-    strategy = strategist.deploy(
-        Strategy, vault, ybs, reward_distributor, swapper, 0, 1_000_000e18
-    )
+    # deploy!
+    strategy = strategist.deploy(Strategy, vault, ybs, reward_distributor, swapper_v2)
     strategy.setKeeper(keeper)
-    vault.addStrategy(strategy, 10_000, 0, 2**256 - 1, 1_000, {"from": gov})
+
+    # check and print starting boost of strategy
+    utils = Contract(registry.deployments(token)["utilities"])
+    print(
+        "Current active boost:", utils.getUserActiveBoostMultiplier(old_strategy) / 1e18
+    )
+
+    # realistically, we'll migrate first before we do anything else
+    vault.migrateStrategy(old_strategy, strategy, {"from": gov})
+
+    # make sure it's empty
+    assert token.balanceOf(old_strategy) == 0 == old_strategy.estimatedTotalAssets()
+
+    # make gov an approved staker
+    with brownie.reverts("!approvedStaker"):
+        strategy.manualStakeAsMaxWeighted(95e16, {"from": gov})
+    ybs.setWeightedStaker(strategy, True, {"from": gov})
+
+    # do the manual boost setup, 95% max boosted
+    strategy.manualStakeAsMaxWeighted(95e16, {"from": gov})
+    chain.mine()
+    chain.sleep(1)
+    print(
+        "Current new strategy active boost:",
+        utils.getUserActiveBoostMultiplier(strategy) / 1e18,
+    )
+    print(
+        "Current new strategy projected boost:",
+        utils.getUserProjectedBoostMultiplier(strategy) / 1e18,
+    )
+    assert strategy.balanceOfWant() == 0
+    assert strategy.estimatedTotalAssets() > 0
+
     yield strategy
 
 
@@ -172,6 +231,8 @@ def deposit_rewards(user, reward_token, token, reward_distributor, crvusd_whale)
         amt = 5_000 * 10**18
         reward_distributor.depositReward(amt, {"from": user})
         week = reward_distributor.getWeek()
-        assert amt == reward_distributor.weeklyRewardAmount(week)
+
+        # make sure we at least have this amount
+        assert reward_distributor.weeklyRewardAmount(week) >= amt
 
     yield deposit_rewards
