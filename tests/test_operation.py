@@ -4,13 +4,24 @@ import pytest
 
 
 def test_operation(
-    chain, accounts, token, gov, vault, ybs, 
-    reward_distributor, strategy, user, utils, amount, RELATIVE_APPROX, deposit_rewards
+    chain,
+    accounts,
+    token,
+    gov,
+    vault,
+    ybs,
+    reward_distributor,
+    strategy,
+    user,
+    utils,
+    amount,
+    RELATIVE_APPROX,
+    deposit_rewards,
 ):
     # Deposit to the vault
-    vault.updateStrategyDebtRatio(strategy, 10_000, {'from':gov})
-    strategy.harvest({'from':gov})
-    
+    vault.updateStrategyDebtRatio(strategy, 10_000, {"from": gov})
+    strategy.harvest({"from": gov})
+
     deposit_rewards()
     user_balance_before = token.balanceOf(user)
     token.approve(vault.address, amount, {"from": user})
@@ -21,26 +32,30 @@ def test_operation(
     chain.sleep(60 * 60 * 24 * 7)
     chain.mine()
     if utils.getGlobalActiveBoostMultiplier() == 0:
-        reward_distributor.pushRewards(utils.getWeek() - 1, {'from':gov})
+        reward_distributor.pushRewards(utils.getWeek() - 1, {"from": gov})
         chain.sleep(60 * 60 * 24 * 7)
         chain.mine()
         assert utils.getGlobalActiveBoostMultiplier() > 0
     assert reward_distributor.getClaimable(strategy) > 0
 
-    
-    vault.updateStrategyDebtRatio(strategy, 5_000, {'from':gov})
+    vault.updateStrategyDebtRatio(strategy, 5_000, {"from": gov})
     tx = strategy.harvest()
-    assert vault.totalAssets() * 0.51 > strategy.estimatedTotalAssets() > vault.totalAssets() * 0.49
+    assert (
+        vault.totalAssets() * 0.51
+        > strategy.estimatedTotalAssets()
+        > vault.totalAssets() * 0.49
+    )
 
-    vault.updateStrategyDebtRatio(strategy, 10_000, {'from':gov})
+    vault.updateStrategyDebtRatio(strategy, 10_000, {"from": gov})
     tx = strategy.harvest()
-    assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == vault.totalAssets()
+    assert (
+        pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX)
+        == vault.totalAssets()
+    )
 
     # withdrawal
     vault.withdraw({"from": user})
-    assert (
-        token.balanceOf(user) > user_balance_before
-    )
+    assert token.balanceOf(user) > user_balance_before
 
 
 def test_emergency_exit(
@@ -51,7 +66,10 @@ def test_emergency_exit(
     vault.deposit(amount, {"from": user})
     chain.sleep(1)
     strategy.harvest()
-    assert pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX) == vault.totalAssets()
+    assert (
+        pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX)
+        == vault.totalAssets()
+    )
 
     # set emergency and exit
     strategy.setEmergencyExit()

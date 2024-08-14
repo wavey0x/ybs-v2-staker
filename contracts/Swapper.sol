@@ -32,37 +32,37 @@ contract Swapper {
         pool1 = _pool1;
         pool2 = _pool2;
         tokenOutPool1 = _tokenOutPool1;
-        
+
         uint idxFound;
         address token;
 
-        for(uint i; i < 3; ++i){
+        for (uint i; i < 3; ++i) {
             token = _pool1.coins(i);
-            if(token == address(_tokenIn)) {
+            if (token == address(_tokenIn)) {
                 pool1InTokenIdx = i;
                 idxFound++;
-                if(idxFound == 2) break;
+                if (idxFound == 2) break;
             }
-            if(token == address(_tokenOutPool1)) {
+            if (token == address(_tokenOutPool1)) {
                 pool1OutTokenIdx = i;
                 idxFound++;
-                if(idxFound == 2) break;
+                if (idxFound == 2) break;
             }
         }
 
         idxFound = 0;
 
-        for(uint i; i < 3; ++i){
+        for (uint i; i < 3; ++i) {
             token = _pool2.coins(i);
-            if(token == address(_tokenOutPool1)) {
+            if (token == address(_tokenOutPool1)) {
                 pool2InTokenIdx = int128(int256(i));
                 idxFound++;
-                if(idxFound == 2) break;
+                if (idxFound == 2) break;
             }
-            if(token == address(_tokenOut)) {
+            if (token == address(_tokenOut)) {
                 pool2OutTokenIdx = int128(int256(i));
                 idxFound++;
-                if(idxFound == 2) break;
+                if (idxFound == 2) break;
             }
         }
 
@@ -72,8 +72,20 @@ contract Swapper {
 
     function swap(uint _amount) external returns (uint) {
         tokenIn.safeTransferFrom(msg.sender, address(this), _amount);
-        uint out = pool1.exchange_underlying(pool1InTokenIdx, pool1OutTokenIdx, _amount, 0);
-        return pool2.exchange(pool2InTokenIdx, pool2OutTokenIdx, out, 0, msg.sender);
+        uint out = pool1.exchange_underlying(
+            pool1InTokenIdx,
+            pool1OutTokenIdx,
+            _amount,
+            0
+        );
+        return
+            pool2.exchange(
+                pool2InTokenIdx,
+                pool2OutTokenIdx,
+                out,
+                0,
+                msg.sender
+            );
     }
 
     function sweep(address _token) external {
@@ -81,6 +93,4 @@ contract Swapper {
         uint amount = ERC20(_token).balanceOf(address(this));
         if (amount > 0) ERC20(_token).safeTransfer(owner, amount);
     }
-
 }
-

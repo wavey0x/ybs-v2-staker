@@ -10,6 +10,7 @@ import {IYearnBoostedStaker} from "./interfaces/IYearnBoostedStaker.sol";
 
 interface IERC4626 {
     function asset() external view returns (address);
+
     function redeem(
         uint256 shares,
         address receiver,
@@ -33,7 +34,8 @@ contract Strategy is BaseStrategy {
     IRewardDistributor public immutable rewardDistributor;
     IERC20 public immutable rewardToken;
     IERC20 public immutable rewardTokenUnderlying;
-    IStrategyProxy public constant proxy = IStrategyProxy(0x78eDcb307AC1d1F8F5Fd070B377A6e69C8dcFC34);
+    IStrategyProxy public constant proxy =
+        IStrategyProxy(0x78eDcb307AC1d1F8F5Fd070B377A6e69C8dcFC34);
 
     struct SwapThresholds {
         uint112 min;
@@ -102,7 +104,7 @@ contract Strategy is BaseStrategy {
         uint256 _amountFreed;
         (_amountFreed, _loss) = liquidatePosition(_debtOutstanding + _profit);
         _debtPayment = min(_debtOutstanding, _amountFreed);
-        
+
         // lock at the end of each epoch
         uint weekEnd = (block.timestamp / 1 weeks + 1) * 1 weeks;
         bool isNearEnd = weekEnd - block.timestamp <= thresholdTimeUntilWeekEnd;
@@ -132,7 +134,7 @@ contract Strategy is BaseStrategy {
                 address(this),
                 address(this)
             );
-            
+
             if (st.autoAdjustThresholds) {
                 // use our weekly output to set how much we max sell each time (make sure we get it all in 7 days)
                 st.max = uint112((output * 101) / 700);
@@ -253,7 +255,11 @@ contract Strategy is BaseStrategy {
         uint256 _swapThresholdMax,
         bool _autoAdjustThresholds
     ) external onlyVaultManagers {
-        _setSwapThresholds(_swapThresholdMin, _swapThresholdMax, _autoAdjustThresholds);
+        _setSwapThresholds(
+            _swapThresholdMin,
+            _swapThresholdMax,
+            _autoAdjustThresholds
+        );
     }
 
     function _setSwapThresholds(

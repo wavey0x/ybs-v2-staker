@@ -18,7 +18,7 @@ def test_migration(
     RELATIVE_APPROX,
     reward_distributor,
     swapper,
-    ybs
+    ybs,
 ):
     # Deposit to the vault and harvest
     token.approve(vault.address, amount, {"from": user})
@@ -28,8 +28,8 @@ def test_migration(
     assert strategy.estimatedTotalAssets() > amount
 
     # migrate to a new strategy
-    new_strategy = strategist.deploy(Strategy, vault, ybs, reward_distributor, swapper, 0, 1_000_000e18)
-    vault.migrateStrategy(strategy, new_strategy, {"from": gov})
-    assert (
-        new_strategy.estimatedTotalAssets() >= amount
+    new_strategy = strategist.deploy(
+        Strategy, vault, ybs, reward_distributor, swapper, 0, 1_000_000e18
     )
+    vault.migrateStrategy(strategy, new_strategy, {"from": gov})
+    assert new_strategy.estimatedTotalAssets() >= amount
