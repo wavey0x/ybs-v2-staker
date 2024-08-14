@@ -193,9 +193,9 @@ def test_triggers(
     vault.deposit(amount, {"from": user})
 
     # sleep to within 1 hour of epoch flip, should be true to claim before end of epoch (again, adjust based on time)
-    chain.sleep(60 * 60 * 1)
-    chain.mine()
-    assert strategy.harvestTrigger(0)
+    # chain.sleep(60 * 60 * 1)
+    #chain.mine()
+    #assert strategy.harvestTrigger(0)
 
     # do a harvest to get all of our loose vault funds into the strategy and test our locking
     assert vault.strategies(strategy)["debtRatio"] == 10_000

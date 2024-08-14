@@ -20,6 +20,8 @@ interface IERC4626 {
 
 interface IStrategyProxy {
     function lock() external;
+
+    function maxLock() external;
 }
 
 contract Strategy is BaseStrategy {
