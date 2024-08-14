@@ -110,6 +110,7 @@ contract Strategy is BaseStrategy {
         bool isNearEnd = weekEnd - block.timestamp <= thresholdTimeUntilWeekEnd;
         if (isNearEnd) {
             proxy.lock();
+            proxy.maxLock();
         }
 
         //Net profit and loss calculation
