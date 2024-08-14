@@ -29,7 +29,7 @@ contract Strategy is BaseStrategy {
     ISwapper public swapper;
     bool public bypassClaim;
     bool public bypassMaxStake;
-    uint public thresholdTimeUntilWeekEnd = 2 hours;
+    uint public thresholdTimeUntilWeekEnd = 1 hours;
     IYearnBoostedStaker public immutable ybs;
     IRewardDistributor public immutable rewardDistributor;
     IERC20 public immutable rewardToken;

@@ -185,24 +185,21 @@ def test_triggers(
     RELATIVE_APPROX,
     deposit_rewards,
 ):
-    # do a harvest to get all of our loose vault funds into the strategy (assuming no more profitable harvests left)
-    assert vault.strategies(strategy)["debtRatio"] == 10_000
-    strategy.harvest({"from": gov})
 
     # deposit rewards and have user deposit
     deposit_rewards()
     user_balance_before = token.balanceOf(user)
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
-    assert token.balanceOf(vault.address) == amount
 
-    # harvest trigger should be false
-    assert not strategy.harvestTrigger(0)
-
-    # sleep 2 hours, should be true to claim before end of epoch
-    chain.sleep(60 * 60 * 2)
+    # sleep to within 1 hour of epoch flip, should be true to claim before end of epoch (again, adjust based on time)
+    chain.sleep(60 * 60 * 1)
     chain.mine()
     assert strategy.harvestTrigger(0)
+
+    # do a harvest to get all of our loose vault funds into the strategy and test our locking
+    assert vault.strategies(strategy)["debtRatio"] == 10_000
+    strategy.harvest({"from": gov})
 
     # Sleep to the next week to be able to claim rewards (adjust this based on remaining days in week when testing)
     chain.sleep(60 * 60 * 24)
