@@ -125,6 +125,22 @@ def swapper(gov, reward_token, token, ybs, Swapper):
     swapper = gov.deploy(Swapper, token_in, token_out, pool1, token_out_pool1, pool2)
     yield swapper
 
+@pytest.fixture
+def swapper_v3(gov, reward_token, token, ybs, SwapperV3):
+    token_in = '0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E' # crvUSD
+    token_out = token
+    token_out_pool1 = '0xD533a949740bb3306d119CC777fa900bA034cd52'
+    pool1 = '0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14'
+    pool2 = '0x99f5acc8ec2da2bc0771c32814eff52b712de1e5'
+    swapper = gov.deploy(
+        SwapperV3, 
+        token_in, 
+        token_out,
+        pool1,
+        token_out_pool1,
+        pool2
+    )
+    yield swapper
 
 @pytest.fixture
 def swapper_v2(gov, reward_token, token, ybs, SwapperV2):
@@ -155,10 +171,10 @@ def strategy(
     old_strategy,
     token,
     registry,
-    swapper_v2,
+    swapper_v3,
 ):
     # deploy!
-    strategy = strategist.deploy(Strategy, vault, ybs, reward_distributor, swapper_v2)
+    strategy = strategist.deploy(Strategy, vault, ybs, reward_distributor, swapper_v3)
     strategy.setKeeper(keeper)
 
     # check and print starting boost of strategy
