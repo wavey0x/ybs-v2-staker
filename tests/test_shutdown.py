@@ -23,7 +23,7 @@ def test_vault_shutdown_can_withdraw(
     assert strategy.estimatedTotalAssets() >= amount
 
     ## Set Emergency
-    vault.setEmergencyShutdown(True,{'from':vault.governance()})
+    vault.setEmergencyShutdown(True, {"from": vault.governance()})
 
     ## Withdraw (does it work, do you get what you expect)
     vault.withdraw({"from": user})
