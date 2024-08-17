@@ -12,7 +12,20 @@ interface IZap {
 }
 
 interface IVault{
+    struct StrategyParams {
+        uint256 performanceFee;
+        uint256 activation;
+        uint256 debtRatio;
+        uint256 minDebtPerHarvest;
+        uint256 maxDebtPerHarvest;
+        uint256 lastReport;
+        uint256 totalDebt;
+        uint256 totalGain;
+        uint256 totalLoss;
+    }
     function deposit(uint amount, address recipient) external returns (uint);
+    function strategies(address) external returns (StrategyParams memory);
+    function asset() external returns (address);
 }
 
 contract SwapperV3 {
@@ -31,12 +44,21 @@ contract SwapperV3 {
     bool otcDisabled;
     address public constant owner = 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52;
     address public constant treasury = 0x93A62dA5a14C80f265DAbC077fCEE437B1a0Efde;
-    
-    // yCRV v4 zap
     IZap public constant zap = IZap(0x78ada385b15D89a9B845D2Cac0698663F0c69e3C);
     IVault public vault = IVault(0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F);
+    IVault public approvedVault = IVault(0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F);
+    mapping(address => bool) public allowed;
+
+    modifier isAllowed() {
+        require(
+            approvedVault.strategies(msg.sender).activation > 0 || 
+            allowed[msg.sender], "!Allowed"
+        );
+        _;
+    }
 
     event OTC(uint price, uint sellTokenAmount, uint buyTokenAmount);
+    event SetAllowed(address caller, bool isAllowed);
 
     constructor(
         ERC20 _tokenIn,
@@ -81,8 +103,8 @@ contract SwapperV3 {
         return profit += zap.zap(address(tokenOutPool1), address(tokenOut), out, 0, msg.sender);
     }
 
-    // Returns amount of tokens remaining to be sold.
-    function _sellOtc(uint _sellTokenAmount) internal returns (uint profit, uint remainingToSell) {
+    // Returns amount of profit and amount of sell tokens remaining to be sold.
+    function _sellOtc(uint _sellTokenAmount) internal isAllowed returns (uint, uint) {
         ERC20 buyToken = tokenOut;
         uint buyTokenBalance = buyToken.balanceOf(address(this));
         if (buyTokenBalance < PRECISION) return (0, _sellTokenAmount);
@@ -102,9 +124,9 @@ contract SwapperV3 {
     // This function is not generic and is strictly for pricing crvUSD to yCRV
     // Returns the price of crvUSD to yCRV
     function priceOracle() public view returns (uint) {
-        uint oraclePricePool1 = 1e36 / pool1.price_oracle(1); // 1 = CRV index
-        uint oraclePricePool2 = 1e36 / pool2.price_oracle();
-        return PRECISION * oraclePricePool1 / oraclePricePool2;
+        uint oraclePricePool1 = pool1.price_oracle(1); // 1 = CRV index
+        uint oraclePricePool2 = pool2.price_oracle();
+        return PRECISION * oraclePricePool2 / oraclePricePool1;
     }
 
     function sweep(address _token) external {
@@ -120,7 +142,16 @@ contract SwapperV3 {
 
     function setVault(IVault _vault) external {
         require(msg.sender == owner, "!authorized");
+        require(_vault.asset() == address(tokenIn), "wrong asset");
+        tokenIn.approve(address(vault), 0);
+        tokenIn.approve(address(_vault), type(uint256).max);
         vault = _vault;
+    }
+
+    function setAllowed(address _caller, bool _isAllowed) external {
+        require(msg.sender == owner, "!authorized");
+        allowed[_caller] = _isAllowed;
+        emit SetAllowed(_caller, _isAllowed);
     }
 
 }
