@@ -5,6 +5,8 @@ import pytest
 WEEK = 60*60*24*7
 
 def test_swapper(swapper_v3, vault, deposit_rewards, chain, strategy):
+    price = 1 / (swapper_v3.priceOracle()/1e18) # yCRV price as crvUSD
+    assert price > 0.10 and price < 1.0
     tx = strategy.harvest()
     whale = accounts.at('0x71E47a4429d35827e0312AA13162197C23287546', force=True)
     ycrv = Contract(vault.token())
@@ -160,10 +162,11 @@ def test_emergency_exit(
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
     chain.sleep(1)
-    strategy.harvest()
+    tx = strategy.harvest()
+    profit = tx.events['Harvested']['profit']
     assert (
         pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX)
-        == vault.totalAssets()
+        == vault.totalAssets() - profit
     )
 
     # set emergency and exit
@@ -214,23 +217,18 @@ def test_triggers(
     deposit_rewards,
 ):
 
-    # deposit rewards and have user deposit
-    deposit_rewards()
-    user_balance_before = token.balanceOf(user)
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
 
-    # sleep to within 1 hour of epoch flip, should be true to claim before end of epoch (again, adjust based on time)
-    # chain.sleep(60 * 60 * 1)
-    #chain.mine()
-    #assert strategy.harvestTrigger(0)
+    # deposit rewards and have user deposit
+    deposit_rewards()
 
     # do a harvest to get all of our loose vault funds into the strategy and test our locking
     assert vault.strategies(strategy)["debtRatio"] == 10_000
     strategy.harvest({"from": gov})
 
     # Sleep to the next week to be able to claim rewards (adjust this based on remaining days in week when testing)
-    chain.sleep(60 * 60 * 24)
+    chain.sleep(60 * 60 * 24 * 7)
     chain.mine()
 
     deposit_rewards()

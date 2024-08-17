@@ -46,7 +46,7 @@ contract SwapperV3 {
     address public constant treasury = 0x93A62dA5a14C80f265DAbC077fCEE437B1a0Efde;
     IZap public constant zap = IZap(0x78ada385b15D89a9B845D2Cac0698663F0c69e3C);
     IVault public vault = IVault(0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F);
-    IVault public approvedVault = IVault(0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F);
+    IVault public approvedVault = IVault(0x27B5739e22ad9033bcBf192059122d163b60349D);
     mapping(address => bool) public allowed;
 
     modifier isAllowed() {
@@ -115,7 +115,7 @@ contract SwapperV3 {
             amountToBuy = buyTokenBalance;
             amountToSell = PRECISION * buyTokenBalance / price;
         }
-        buyToken.transfer(msg.sender, amountToBuy);
+        buyToken.safeTransfer(msg.sender, amountToBuy);
         vault.deposit(amountToSell, treasury);
         emit OTC(price, amountToSell, amountToBuy);
         return (amountToBuy, _sellTokenAmount - amountToSell);
