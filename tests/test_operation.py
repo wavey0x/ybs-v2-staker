@@ -4,7 +4,7 @@ import pytest
 
 WEEK = 60*60*24*7
 
-def test_swapper(swapper_v3, vault, deposit_rewards, chain, strategy):
+def test_swapper(swapper_v3, vault, deposit_rewards, chain, strategy, gov, crvusd_dummy_vault):
     price = 1 / (swapper_v3.priceOracle()/1e18) # yCRV price as crvUSD
     assert price > 0.10 and price < 1.0
     tx = strategy.harvest()
@@ -12,6 +12,10 @@ def test_swapper(swapper_v3, vault, deposit_rewards, chain, strategy):
     ycrv = Contract(vault.token())
     chain.sleep(3*WEEK)
     chain.mine()
+
+    v = swapper_v3.vault()
+    swapper_v3.setVault(crvusd_dummy_vault, {'from': gov})
+    swapper_v3.setVault(v, {'from': gov})
 
     amounts = [10e18, 100_000e18, 0]
 

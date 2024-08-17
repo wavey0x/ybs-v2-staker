@@ -227,6 +227,11 @@ def RELATIVE_APPROX():
 def shared_setup(fn_isolation):
     pass
 
+@pytest.fixture
+def crvusd_dummy_vault(reward_token, gov):
+    factory = Contract('0x444045c5c13c246e117ed36437303cac8e250ab0')
+    tx = factory.deploy_new_vault(reward_token.asset(), 'dummy-crvusd', 'dummy-crvusd', '0xb3bd6B2E61753C311EFbCF0111f75D29706D9a41', 0, {'from':gov})
+    yield tx.return_value
 
 @pytest.fixture
 def crvusd_whale(accounts, token, user, reward_token):
