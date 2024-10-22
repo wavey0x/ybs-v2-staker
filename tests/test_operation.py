@@ -2,39 +2,42 @@ import brownie
 from brownie import Contract, accounts
 import pytest
 
-WEEK = 60*60*24*7
+WEEK = 60 * 60 * 24 * 7
 
-def test_swapper(swapper_v3, vault, deposit_rewards, chain, strategy, gov, crvusd_dummy_vault):
-    price = 1 / (swapper_v3.priceOracle()/1e18) # yCRV price as crvUSD
+
+def test_swapper(
+    swapper_v3, vault, deposit_rewards, chain, strategy, gov, crvusd_dummy_vault
+):
+    price = 1 / (swapper_v3.priceOracle() / 1e18)  # yCRV price as crvUSD
     assert price > 0.10 and price < 1.0
     tx = strategy.harvest()
-    whale = accounts.at('0x71E47a4429d35827e0312AA13162197C23287546', force=True)
+    whale = accounts.at("0x71E47a4429d35827e0312AA13162197C23287546", force=True)
     ycrv = Contract(vault.token())
-    chain.sleep(3*WEEK)
+    chain.sleep(3 * WEEK)
     chain.mine()
 
     v = swapper_v3.vault()
-    swapper_v3.setVault(crvusd_dummy_vault, {'from': gov})
-    swapper_v3.setVault(v, {'from': gov})
+    swapper_v3.setVault(crvusd_dummy_vault, {"from": gov})
+    swapper_v3.setVault(v, {"from": gov})
 
     amounts = [10e18, 100_000e18, 0]
 
     for i in range(3):
-        ycrv.transfer(swapper_v3, amounts[i], {'from': whale})
-    
+        ycrv.transfer(swapper_v3, amounts[i], {"from": whale})
+
         deposit_rewards()
-        
+
         chain.sleep(WEEK)
         chain.mine()
 
         tx = strategy.harvest()
-        assert 'OTC' in tx.events
-        event = tx.events['OTC']
-        print('Sell amount',event['sellTokenAmount']/1e18)
-        print('Buy amount',event['buyTokenAmount']/1e18)
+        assert "OTC" in tx.events
+        event = tx.events["OTC"]
+        print("Sell amount", event["sellTokenAmount"] / 1e18)
+        print("Buy amount", event["buyTokenAmount"] / 1e18)
         bal = Contract(swapper_v3.tokenOut()).balanceOf(swapper_v3) / 1e18
-        print(f'Remaining OTC balance {bal}\n')
-        
+        print(f"Remaining OTC balance {bal}\n")
+
 
 def test_operation(
     chain,
@@ -167,7 +170,7 @@ def test_emergency_exit(
     vault.deposit(amount, {"from": user})
     chain.sleep(1)
     tx = strategy.harvest()
-    profit = tx.events['Harvested']['profit']
+    profit = tx.events["Harvested"]["profit"]
     assert (
         pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX)
         == vault.totalAssets() - profit

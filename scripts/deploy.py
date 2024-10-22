@@ -2,7 +2,7 @@ from brownie import Strategy, SwapperV3, accounts, Contract, web3
 
 
 def main():
-    print(f'TESTING!!!')
+    print(f"TESTING!!!")
     wavey = accounts.load("wavey3")
     ycrv = "0xFCc5c47bE19d06BF83eB04298b026F81069ff65b"
     # Strategy unwraps from vault
@@ -12,14 +12,14 @@ def main():
     pool1 = "0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14"  # TriCRV
     pool2 = "0x99f5acc8ec2da2bc0771c32814eff52b712de1e5"  # CRV/yCRV
     swapper = wavey.deploy(
-        SwapperV3, 
-        token_in, 
-        token_out, 
-        pool1, 
-        token_out_pool1, 
+        SwapperV3,
+        token_in,
+        token_out,
+        pool1,
+        token_out_pool1,
         pool2,
         publish_source=True,
-        priority_fee=1e5
+        priority_fee=1e5,
     )
 
     vault = "0x27B5739e22ad9033bcBf192059122d163b60349D"
@@ -35,7 +35,7 @@ def main():
         reward_distributor,
         swapper,
         publish_source=True,
-        priority_fee=1e5
+        priority_fee=1e5,
     )
     keeper = "0x736D7e3c5a6CB2CE3B764300140ABF476F6CFCCF"
     strategy.setKeeper(keeper)

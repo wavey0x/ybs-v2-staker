@@ -12,6 +12,7 @@ def gov(accounts):
 def user(accounts):
     yield accounts[0]
 
+
 @pytest.fixture
 def rewards(accounts):
     yield accounts[1]
@@ -124,40 +125,30 @@ def swapper(gov, reward_token, token, ybs, Swapper):
     swapper = gov.deploy(Swapper, token_in, token_out, pool1, token_out_pool1, pool2)
     yield swapper
 
+
 @pytest.fixture
 def swapper_v3(gov, reward_token, token, ybs, SwapperV3):
-    token_in = '0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E' # crvUSD
+    token_in = "0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E"  # crvUSD
     token_out = token
-    token_out_pool1 = '0xD533a949740bb3306d119CC777fa900bA034cd52'
-    pool1 = '0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14'
-    pool2 = '0x99f5acc8ec2da2bc0771c32814eff52b712de1e5'
-    swapper = gov.deploy(
-        SwapperV3, 
-        token_in, 
-        token_out,
-        pool1,
-        token_out_pool1,
-        pool2
-    )
+    token_out_pool1 = "0xD533a949740bb3306d119CC777fa900bA034cd52"
+    pool1 = "0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14"
+    pool2 = "0x99f5acc8ec2da2bc0771c32814eff52b712de1e5"
+    swapper = gov.deploy(SwapperV3, token_in, token_out, pool1, token_out_pool1, pool2)
     yield swapper
+
 
 @pytest.fixture
 def swapper_v4(gov, token, SwapperV4, management):
-    token_in = '0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E' # crvUSD
+    token_in = "0xf939E0A03FB07F59A73314E73794Be0E57ac1b4E"  # crvUSD
     token_out = token
-    token_out_pool1 = '0xD533a949740bb3306d119CC777fa900bA034cd52'
-    pool1 = '0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14'
-    pool2 = '0x99f5acc8ec2da2bc0771c32814eff52b712de1e5'
+    token_out_pool1 = "0xD533a949740bb3306d119CC777fa900bA034cd52"
+    pool1 = "0x4eBdF703948ddCEA3B11f675B4D1Fba9d2414A14"
+    pool2 = "0x99f5acc8ec2da2bc0771c32814eff52b712de1e5"
     swapper = gov.deploy(
-        SwapperV4,
-        management,
-        token_in, 
-        token_out,
-        pool1,
-        token_out_pool1,
-        pool2
+        SwapperV4, management, token_in, token_out, pool1, token_out_pool1, pool2
     )
     yield swapper
+
 
 @pytest.fixture
 def swapper_v2(gov, reward_token, token, ybs, SwapperV2):
@@ -220,7 +211,6 @@ def strategy(
     chain.mine()
     chain.sleep(1)
 
-    
     print(
         "Current new strategy active boost:",
         utils.getUserActiveBoostMultiplier(strategy) / 1e18,
@@ -246,11 +236,20 @@ def RELATIVE_APPROX():
 def shared_setup(fn_isolation):
     pass
 
+
 @pytest.fixture
 def crvusd_dummy_vault(reward_token, gov):
-    factory = Contract('0x444045c5c13c246e117ed36437303cac8e250ab0')
-    tx = factory.deploy_new_vault(reward_token.asset(), 'dummy-crvusd', 'dummy-crvusd', '0xb3bd6B2E61753C311EFbCF0111f75D29706D9a41', 0, {'from':gov})
+    factory = Contract("0x444045c5c13c246e117ed36437303cac8e250ab0")
+    tx = factory.deploy_new_vault(
+        reward_token.asset(),
+        "dummy-crvusd",
+        "dummy-crvusd",
+        "0xb3bd6B2E61753C311EFbCF0111f75D29706D9a41",
+        0,
+        {"from": gov},
+    )
     yield tx.return_value
+
 
 @pytest.fixture
 def crvusd_whale(accounts, token, user, reward_token):
