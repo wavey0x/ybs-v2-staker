@@ -53,7 +53,7 @@ contract SwapperV4 {
         0x93A62dA5a14C80f265DAbC077fCEE437B1a0Efde;
     IZap public constant zap = IZap(0x78ada385b15D89a9B845D2Cac0698663F0c69e3C);
     IVault public vault = IVault(0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F);
-    IVault public approvedVault =
+    IVault public constant approvedVault =
         IVault(0x27B5739e22ad9033bcBf192059122d163b60349D);
     address public management;
     mapping(address => bool) public allowedSwapper;
