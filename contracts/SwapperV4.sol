@@ -45,15 +45,15 @@ contract SwapperV4 {
     ERC20 public immutable tokenOutPool1;
     ICurve public immutable pool1;
     ICurveInt128 public immutable pool2;
-    uint public pool1InTokenIdx;
-    uint public pool1OutTokenIdx;
+    uint public immutable pool1InTokenIdx;
+    uint public immutable pool1OutTokenIdx;
     bool public otcEnabled;
     address public constant owner = 0xFEB4acf3df3cDEA7399794D0869ef76A6EfAff52;
     address public constant treasury =
         0x93A62dA5a14C80f265DAbC077fCEE437B1a0Efde;
     IZap public constant zap = IZap(0x78ada385b15D89a9B845D2Cac0698663F0c69e3C);
     IVault public vault = IVault(0xBF319dDC2Edc1Eb6FDf9910E39b37Be221C8805F);
-    IVault public approvedVault =
+    IVault public constant approvedVault =
         IVault(0x27B5739e22ad9033bcBf192059122d163b60349D);
     address public management;
     mapping(address => bool) public allowedSwapper;
@@ -81,7 +81,9 @@ contract SwapperV4 {
     }
 
     event OTC(uint price, uint sellTokenAmount, uint buyTokenAmount);
+    event SetVault(address indexed vault);
     event SetAllowedSwapper(address indexed caller, bool indexed isAllowed);
+    event SetManagement(address indexed management);
     event OTCEnabled(bool indexed enabled);
 
     constructor(
@@ -185,6 +187,7 @@ contract SwapperV4 {
         tokenIn.approve(address(vault), 0);
         tokenIn.approve(address(_vault), type(uint256).max);
         vault = _vault;
+        emit SetVault(address(_vault));
     }
 
     // Permit a caller to OTC against funds in this contract
@@ -198,5 +201,6 @@ contract SwapperV4 {
 
     function setManagement(address _management) external onlyOwner {
         management = _management;
+        emit SetManagement(_management);
     }
 }
