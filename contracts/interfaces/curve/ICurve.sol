@@ -29,6 +29,10 @@ interface ICurve {
 
     function ema_price() external view returns (uint256);
 
+    function price_oracle() external view returns (uint256);
+
+    function price_oracle(uint256) external view returns (uint256);
+
     function get_balances() external view returns (uint256[2] memory);
 
     function admin_fee() external view returns (uint256);

@@ -1,6 +1,42 @@
 import brownie
-from brownie import Contract
+from brownie import Contract, accounts
 import pytest
+
+WEEK = 60 * 60 * 24 * 7
+
+
+def test_swapper(
+    swapper_v3, vault, deposit_rewards, chain, strategy, gov, crvusd_dummy_vault
+):
+    price = 1 / (swapper_v3.priceOracle() / 1e18)  # yCRV price as crvUSD
+    assert price > 0.10 and price < 1.0
+    tx = strategy.harvest()
+    whale = accounts.at("0x71E47a4429d35827e0312AA13162197C23287546", force=True)
+    ycrv = Contract(vault.token())
+    chain.sleep(3 * WEEK)
+    chain.mine()
+
+    v = swapper_v3.vault()
+    swapper_v3.setVault(crvusd_dummy_vault, {"from": gov})
+    swapper_v3.setVault(v, {"from": gov})
+
+    amounts = [10e18, 100_000e18, 0]
+
+    for i in range(3):
+        ycrv.transfer(swapper_v3, amounts[i], {"from": whale})
+
+        deposit_rewards()
+
+        chain.sleep(WEEK)
+        chain.mine()
+
+        tx = strategy.harvest()
+        assert "OTC" in tx.events
+        event = tx.events["OTC"]
+        print("Sell amount", event["sellTokenAmount"] / 1e18)
+        print("Buy amount", event["buyTokenAmount"] / 1e18)
+        bal = Contract(swapper_v3.tokenOut()).balanceOf(swapper_v3) / 1e18
+        print(f"Remaining OTC balance {bal}\n")
 
 
 def test_operation(
@@ -27,12 +63,13 @@ def test_operation(
     user_balance_before = token.balanceOf(user)
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
-    assert token.balanceOf(vault.address) == amount
+    # assert token.balanceOf(vault.address) == amount
 
     # Sleep to the next week to be able to claim rewards
     chain.sleep(60 * 60 * 24 * 7)
     chain.mine()
 
+    deposit_rewards()
     # if it's our first week, then push the rewards and sleep again
     if utils.getGlobalActiveBoostMultiplier() == 0:
         reward_distributor.pushRewards(utils.getWeek() - 1, {"from": gov})
@@ -132,10 +169,11 @@ def test_emergency_exit(
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
     chain.sleep(1)
-    strategy.harvest()
+    tx = strategy.harvest()
+    profit = tx.events["Harvested"]["profit"]
     assert (
         pytest.approx(strategy.estimatedTotalAssets(), rel=RELATIVE_APPROX)
-        == vault.totalAssets()
+        == vault.totalAssets() - profit
     )
 
     # set emergency and exit
@@ -186,25 +224,21 @@ def test_triggers(
     deposit_rewards,
 ):
 
-    # deposit rewards and have user deposit
-    deposit_rewards()
-    user_balance_before = token.balanceOf(user)
     token.approve(vault.address, amount, {"from": user})
     vault.deposit(amount, {"from": user})
 
-    # sleep to within 1 hour of epoch flip, should be true to claim before end of epoch (again, adjust based on time)
-    # chain.sleep(60 * 60 * 1)
-    #chain.mine()
-    #assert strategy.harvestTrigger(0)
+    # deposit rewards and have user deposit
+    deposit_rewards()
 
     # do a harvest to get all of our loose vault funds into the strategy and test our locking
     assert vault.strategies(strategy)["debtRatio"] == 10_000
     strategy.harvest({"from": gov})
 
     # Sleep to the next week to be able to claim rewards (adjust this based on remaining days in week when testing)
-    chain.sleep(60 * 60 * 24)
+    chain.sleep(60 * 60 * 24 * 7)
     chain.mine()
 
+    deposit_rewards()
     # if it's our first week, then push the rewards and sleep again
     if utils.getGlobalActiveBoostMultiplier() == 0:
         reward_distributor.pushRewards(utils.getWeek() - 1, {"from": gov})

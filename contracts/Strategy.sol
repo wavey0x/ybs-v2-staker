@@ -166,9 +166,11 @@ contract Strategy is BaseStrategy {
         require(_maxStakeShare < 1e18, "!percentage");
         require(ybs.balanceOf(address(this)) == 0, "!empty");
         // manually stake a percentage of loose want as max weighted (use 1e18 as percentage)
-        uint256 maxWeightStake = (_maxStakeShare * balanceOfWant()) / 1e18;
+        uint256 wantBalance = balanceOfWant();
+        uint256 maxWeightStake = (_maxStakeShare * wantBalance) / 1e18;
+        uint256 regularStake = wantBalance - maxWeightStake;
         ybs.stakeAsMaxWeighted(address(this), maxWeightStake);
-        ybs.stake(balanceOfWant());
+        ybs.stake(regularStake);
     }
 
     function adjustPosition(uint256 _debtOutstanding) internal override {
